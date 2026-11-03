@@ -1,0 +1,20 @@
+@import '../../shared/components/AdminModulePage.css';
+
+.module-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(20 30 24 / 58%);
+}
+
+.module-modal {
+  width: min(760px, 100%);
+  max-height: min(85vh, 760px);
+  overflow: auto;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 20%);
+}

@@ -1,0 +1,178 @@
+import './App.css'
+import { lazy, Suspense, useState } from 'react'
+import CategoriesPage from './modules/category/pages/CategoriesPage.jsx'
+const ProductsPage = lazy(() => import('./modules/product/pages/ProductsPage.jsx'))
+import ShopPage from './modules/cart/pages/ShopPage.jsx'
+import AuthPage from './modules/auth/pages/AuthPage.jsx'
+import CustomerPage from './modules/customer/pages/CustomerPage.jsx'
+import OrdersPage from './modules/order/pages/OrdersPage.jsx'
+import InventoryPage from './modules/inventory/pages/InventoryPage.jsx'
+import PaymentsPage from './modules/payment/pages/PaymentsPage.jsx'
+import ProductVariantsPage from './modules/productVariant/pages/ProductVariantsPage.jsx'
+import NotificationsPage from './modules/notification/pages/NotificationsPage.jsx'
+import ReviewsPage from './modules/review/pages/ReviewsPage.jsx'
+import ProductVideosPage from './modules/productVideos/pages/ProductVideosPage.jsx'
+import WebsiteSettingsPage from './modules/websiteSettings/pages/WebsiteSettingsPage.jsx'
+const AdminDashboardPage = lazy(() => import('./modules/shared/components/AdminDashboardPage.jsx'))
+import HomepageBannersPage from './modules/homepageBanners/pages/HomepageBannersPage.jsx'
+import SalesReportsPage from './modules/salesReport/pages/SalesReportsPage.jsx'
+import CouponsPage from './modules/coupon/pages/CouponsPage.jsx'
+import ReturnRequestsPage from './modules/returnRequest/pages/ReturnRequestsPage.jsx'
+import AdminCustomersPage from './modules/customer/pages/AdminCustomersPage.jsx'
+
+function App() {
+  const [session, setSession] = useState(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('admin-session') || 'null')
+    } catch {
+      sessionStorage.removeItem('admin-session')
+      return null
+    }
+  })
+  const [authMode, setAuthMode] = useState(() =>
+    window.location.pathname === '/setup-admin' ? 'setup' : 'login',
+  )
+  const [activeModule, setActiveModule] = useState(() =>
+    ['/admin/products', '/products'].includes(window.location.pathname)
+      ? 'products'
+      : ({
+        '/admin': 'dashboard',
+        '/admin/categories': 'categories',
+        '/admin/orders': 'orders',
+        '/admin/inventory': 'inventory',
+        '/admin/payments': 'payments',
+        '/admin/customers': 'customers',
+        '/admin/returns': 'returns',
+        '/admin/coupons': 'coupons',
+        '/admin/banners': 'banners',
+        '/admin/reports': 'reports',
+        '/admin/variants': 'variants',
+        '/admin/reviews': 'reviews',
+        '/admin/notifications': 'notifications',
+        '/admin/product-videos': 'videos',
+        '/admin/website-settings': 'settings',
+      }[window.location.pathname] || 'categories'),
+  )
+
+  if (['/', '/shop', '/cart', '/checkout'].includes(window.location.pathname)) {
+    return <ShopPage />
+  }
+
+  if (
+    ['/customer/login', '/customer/register', '/customer/forgot-password'].includes(window.location.pathname)
+    || window.location.pathname.startsWith('/account')
+  ) {
+    return <CustomerPage />
+  }
+
+  function navigateToModule(module) {
+    setActiveModule(module)
+    const routes = {
+      dashboard: '/admin',
+      categories: '/admin/categories',
+      products: '/admin/products',
+      orders: '/admin/orders',
+      inventory: '/admin/inventory',
+      payments: '/admin/payments',
+      customers: '/admin/customers',
+      returns: '/admin/returns',
+      coupons: '/admin/coupons',
+      banners: '/admin/banners',
+      reports: '/admin/reports',
+      variants: '/admin/variants',
+      reviews: '/admin/reviews',
+      notifications: '/admin/notifications',
+      videos: '/admin/product-videos',
+      settings: '/admin/website-settings',
+    }
+    window.history.replaceState(null, '', routes[module] || routes.categories)
+  }
+
+  function handleLogin(data) {
+    const nextSession = { token: data.token, user: data.user }
+    sessionStorage.setItem('admin-session', JSON.stringify(nextSession))
+    setSession(nextSession)
+    setActiveModule('dashboard')
+    window.history.replaceState(null, '', '/admin')
+  }
+
+  function handleAdminCreated() {
+    setAuthMode('login')
+    window.history.replaceState(null, '', '/admin/login')
+  }
+
+  function handleLogout() {
+    sessionStorage.removeItem('admin-session')
+    setSession(null)
+    setAuthMode('login')
+    window.history.replaceState(null, '', '/admin/login')
+  }
+
+  if (session?.token && session?.user) {
+    if (activeModule === 'dashboard') {
+      return (
+        <Suspense fallback={<div role="status">Loading dashboard…</div>}>
+          <AdminDashboardPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+        </Suspense>
+      )
+    }
+    if (activeModule === 'orders') {
+      return <OrdersPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'inventory') {
+      return <InventoryPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'payments') {
+      return <PaymentsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'variants') {
+      return <ProductVariantsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'reviews') {
+      return <ReviewsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'notifications') {
+      return <NotificationsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'videos') {
+      return <ProductVideosPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'settings') {
+      return <WebsiteSettingsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'customers') {
+      return <AdminCustomersPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'returns') {
+      return <ReturnRequestsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'coupons') {
+      return <CouponsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'banners') {
+      return <HomepageBannersPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'reports') {
+      return <SalesReportsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'products') {
+      return (
+        <Suspense fallback={<div role="status">Loading product listings…</div>}>
+          <ProductsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+        </Suspense>
+      )
+    }
+    return <CategoriesPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+  }
+
+  return (
+    <AuthPage
+      key={authMode}
+      mode={authMode}
+      onAdminCreated={handleAdminCreated}
+      onLogin={handleLogin}
+    />
+  )
+}
+
+export default App

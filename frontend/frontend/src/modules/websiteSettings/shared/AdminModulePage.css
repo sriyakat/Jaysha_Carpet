@@ -1,0 +1,11 @@
+@import '../../shared/components/AdminModulePage.css';
+
+.module-alert.module-success {
+  border-color: #d6e8d1;
+  color: #4a7446;
+  background: #f3faf0;
+}
+
+.settings-form {
+  padding-top: 20px;
+}

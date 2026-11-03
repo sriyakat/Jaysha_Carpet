@@ -1,0 +1,101 @@
+@import '../../shared/components/AdminModulePage.css';
+
+.report-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.report-stat-card {
+  display: grid;
+  gap: 11px;
+  padding: 18px;
+  border: 1px solid #e6ebe4;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.report-stat-card span {
+  color: #78847b;
+  font-size: 11px;
+}
+
+.report-stat-card strong {
+  color: #2f4437;
+  font-size: 21px;
+}
+
+.report-chart {
+  display: flex;
+  min-height: 220px;
+  align-items: flex-end;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 24px 18px 14px;
+}
+
+.report-chart-column {
+  display: flex;
+  min-width: 46px;
+  height: 170px;
+  flex: 1;
+  align-items: center;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.report-chart-column strong {
+  color: #68776a;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.report-chart-column small {
+  color: #808c82;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.report-chart-bar {
+  width: min(32px, 70%);
+  min-height: 3px;
+  border-radius: 6px 6px 2px 2px;
+  background: linear-gradient(180deg, #a5c58b, #5f8061);
+}
+
+.report-two-column {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.report-threshold {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 14px 16px 0;
+}
+
+.report-threshold .module-field {
+  max-width: 160px;
+  flex: 1;
+}
+
+.module-success {
+  border-color: #d6e8d1;
+  color: #4a7446;
+  background: #f3faf0;
+}
+
+@media (max-width: 900px) {
+  .report-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .report-two-column {
+    grid-template-columns: 1fr;
+  }
+}
