@@ -27,10 +27,14 @@ const validateBanner = (req, res, next) => {
         });
     }
 
-    if (typeof data.ImageUrl !== "string" || !data.ImageUrl.trim()) {
+    if (
+        typeof data.ImageUrl !== "string"
+        && !req.files?.desktopImage?.length
+        && !req.files?.video?.length
+    ) {
         return res.status(400).json({
             success: false,
-            message: "Banner image URL is required."
+            message: "Choose a banner image or first-banner video."
         });
     }
 

@@ -1,4 +1,30 @@
 const categoryService = require('../category/categoryService.js');
+const { saveMedia, deleteMedia } = require('../../utils/mediaStorage');
+
+function categoryData(req, imageStorageKey) {
+    return {
+        ...req.body,
+        categoryName: req.body.categoryName,
+        slug: req.body.slug,
+        displayOrder: req.body.displayOrder === undefined ? undefined : Number(req.body.displayOrder),
+        imageStorageKey
+    };
+}
+
+function categoryWriteError(res, error) {
+    const sqlNumber = error.number ?? error.originalError?.info?.number;
+    if (sqlNumber === 2601 || sqlNumber === 2627) {
+        return res.status(409).json({
+            success: false,
+            message: 'इस नाम या URL नाम वाली श्रेणी पहले से मौजूद है। कृपया अलग नाम या URL नाम चुनें।'
+        });
+    }
+
+    return res.status(error.statusCode === 409 ? 409 : 400).json({
+        success: false,
+        message: error.message || 'श्रेणी सेव नहीं हो सकी। जानकारी जाँचकर फिर कोशिश करें।'
+    });
+}
 
 // GET ALL =================================
 const getAllCategories = async (req, res) => {
@@ -42,8 +68,14 @@ const getCategoryById = async (req, res) => {
 
 // CREATE ===================================
 const createCategory = async (req, res) => {
+    let uploadedMedia;
+    let saved = false;
     try {
-        const category = await categoryService.createCategory(req.body);
+        if (req.file) uploadedMedia = await saveMedia(req.file, 'categories', 'image');
+        const category = await categoryService.createCategory(
+            categoryData(req, uploadedMedia?.StorageKey ?? req.body.imageStorageKey)
+        );
+        saved = true;
 
         return res.status(201).json({
             success: true,
@@ -51,22 +83,33 @@ const createCategory = async (req, res) => {
             data: category
         });
     } catch (error) {
-        return res.status(400).json({
-            success: false,
-            message: error.message
-        });
+        if (uploadedMedia && !saved) await deleteMedia(uploadedMedia.StorageKey);
+        return categoryWriteError(res, error);
     }
 };
 
 // UPDATE===================================
 const updateCategory = async (req, res) => {
+    let uploadedMedia;
+    let saved = false;
     try {
         const categoryId = Number(req.params.id);
+        const existingCategory = await categoryService.getCategoryById(categoryId);
+        if (req.file) uploadedMedia = await saveMedia(req.file, 'categories', 'image');
 
         const category = await categoryService.updateCategory(
             categoryId,
-            req.body
+            categoryData(
+                req,
+                uploadedMedia?.StorageKey
+                    ?? req.body.imageStorageKey
+                    ?? existingCategory.imageStorageKey
+                    ?? existingCategory.ImageStorageKey
+            )
         );
+        saved = true;
+        const previousImage = existingCategory.imageStorageKey ?? existingCategory.ImageStorageKey;
+        if (uploadedMedia && previousImage) await deleteMedia(previousImage);
 
         return res.status(200).json({
             success: true,
@@ -74,12 +117,11 @@ const updateCategory = async (req, res) => {
             data: category
         });
     } catch (error) {
-        const statusCode = error.message === 'Category not found.' ? 404 : 400;
+        if (uploadedMedia && !saved) await deleteMedia(uploadedMedia.StorageKey);
+        const statusCode = error.message === 'Category not found.' ? 404 : undefined;
 
-        return res.status(statusCode).json({
-            success: false,
-            message: error.message
-        });
+        if (statusCode) return res.status(statusCode).json({ success: false, message: 'श्रेणी नहीं मिली।' });
+        return categoryWriteError(res, error);
     }
 };
 
@@ -87,8 +129,11 @@ const updateCategory = async (req, res) => {
 const deleteCategory = async (req, res) => {
     try {
         const categoryId = Number(req.params.id);
+        const existingCategory = await categoryService.getCategoryById(categoryId);
 
         await categoryService.deleteCategory(categoryId);
+        const image = existingCategory.imageStorageKey ?? existingCategory.ImageStorageKey;
+        if (image) await deleteMedia(image);
 
         return res.status(200).json({
             success: true,

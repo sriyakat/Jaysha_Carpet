@@ -5,15 +5,38 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [react()],
   server: {
+    host: '0.0.0.0',
     allowedHosts: ['.trycloudflare.com'],
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://127.0.0.1:3000',
         changeOrigin: true,
+        timeout: 30000,
+        proxyTimeout: 30000,
       },
       '/uploads': {
-        target: 'http://localhost:3000',
+        target: 'http://127.0.0.1:3000',
         changeOrigin: true,
+        timeout: 30000,
+        proxyTimeout: 30000,
+      },
+    },
+  },
+  preview: {
+    host: '0.0.0.0',
+    allowedHosts: ['.trycloudflare.com'],
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        timeout: 30000,
+        proxyTimeout: 30000,
+      },
+      '/uploads': {
+        target: 'http://127.0.0.1:3000',
+        changeOrigin: true,
+        timeout: 30000,
+        proxyTimeout: 30000,
       },
     },
   },

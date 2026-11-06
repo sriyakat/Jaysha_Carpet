@@ -1,6 +1,23 @@
 
 const repository = require("./homepageBannersRepository");
 
+function isVideoUrl(url) {
+    return /\.(?:mp4|webm|ogg)(?:[?#].*)?$/i.test(String(url || ""));
+}
+
+function compareBannerOrder(left, right) {
+    const orderDifference = Number(left.DisplayOrder ?? left.displayOrder ?? 0)
+        - Number(right.DisplayOrder ?? right.displayOrder ?? 0);
+    if (orderDifference) return orderDifference;
+    return Number(left.BannerId ?? left.bannerId ?? Number.MAX_SAFE_INTEGER)
+        - Number(right.BannerId ?? right.bannerId ?? Number.MAX_SAFE_INTEGER);
+}
+
+function isFirstBanner(banner, banners) {
+    const first = [...banners, banner].sort(compareBannerOrder)[0];
+    return Number(first.BannerId ?? first.bannerId) === Number(banner.BannerId ?? banner.bannerId);
+}
+
 // ADMIN CHECK
 const checkAdmin = (user) => {
     const role = (
@@ -22,7 +39,7 @@ const validateBannerData = (data) => {
     }
 
     if (!data.ImageUrl || !data.ImageUrl.trim()) {
-        throw new Error("Banner image URL is required.");
+        throw new Error("Banner image or first-banner video is required.");
     }
 
     const fields = [
@@ -83,27 +100,15 @@ const validateBannerData = (data) => {
         throw new Error("IsActive must be true or false.");
     }
 
-    // Image URL must be an HTTP/HTTPS URL
-    try {
-        const imageUrl = new URL(data.ImageUrl);
-
-        if (!["http:", "https:"].includes(imageUrl.protocol)) {
-            throw new Error();
+    for (const field of ["ImageUrl", "MobileImageUrl"]) {
+        const value = data[field];
+        if (value && !value.startsWith("/uploads/") && !/^https?:\/\//i.test(value)) {
+            throw new Error(`${field} must be an uploaded image.`);
         }
-    } catch {
-        throw new Error("A valid HTTP/HTTPS ImageUrl is required.");
     }
 
-    if (data.MobileImageUrl) {
-        try {
-            const mobileUrl = new URL(data.MobileImageUrl);
-
-            if (!["http:", "https:"].includes(mobileUrl.protocol)) {
-                throw new Error();
-            }
-        } catch {
-            throw new Error("Invalid MobileImageUrl.");
-        }
+    if (data.MobileImageUrl && isVideoUrl(data.MobileImageUrl)) {
+        throw new Error("Mobile banner media must be an image.");
     }
 };
 
@@ -111,6 +116,13 @@ const validateBannerData = (data) => {
 const addBanner = async (data, user) => {
     checkAdmin(user);
     validateBannerData(data);
+    const banners = await repository.getAllBanners(null);
+    const expectedVideo = isFirstBanner({ BannerId: Number.MAX_SAFE_INTEGER, DisplayOrder: data.DisplayOrder }, banners);
+    if (isVideoUrl(data.ImageUrl) !== expectedVideo) {
+        throw new Error(expectedVideo
+            ? "The first homepage banner must use a video."
+            : "Only the first homepage banner can use a video.");
+    }
 
     return await repository.addBanner(data);
 };
@@ -126,19 +138,33 @@ const updateBanner = async (bannerId, data, user) => {
         throw new Error("Banner not found.");
     }
 
+    const oldOrder = Number(existingBanner.DisplayOrder ?? existingBanner.displayOrder ?? 0);
+    const nextOrder = Number(data.DisplayOrder ?? 0);
+    const oldImage = existingBanner.ImageUrl ?? existingBanner.imageUrl;
+    const imageChanged = data.ImageUrl !== oldImage;
+    const banners = await repository.getAllBanners(null);
+    const expectedVideo = isFirstBanner({ ...existingBanner, DisplayOrder: nextOrder }, banners.filter((banner) => Number(banner.BannerId ?? banner.bannerId) !== bannerId));
+    if ((oldOrder !== nextOrder || imageChanged) && isVideoUrl(data.ImageUrl) !== expectedVideo) {
+        throw new Error(nextOrder === 0
+            ? "The first homepage banner must use a video."
+            : "Only the first homepage banner can use a video; other banners must use images.");
+    }
+
     return await repository.updateBanner(bannerId, data);
 };
 
 // 3. GET ACTIVE BANNERS - PUBLIC
 const getActiveBanners = async () => {
-    return await repository.getActiveBanners();
+    const banners = await repository.getActiveBanners();
+    return banners.sort(compareBannerOrder);
 };
 
 // 4. GET ALL BANNERS - ADMIN
 const getAllBanners = async (isActive, user) => {
     checkAdmin(user);
 
-    return await repository.getAllBanners(isActive);
+    const banners = await repository.getAllBanners(isActive);
+    return banners.sort(compareBannerOrder);
 };
 
 // 5. GET BANNER BY ID - ADMIN

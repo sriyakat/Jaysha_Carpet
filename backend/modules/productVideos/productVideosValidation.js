@@ -60,29 +60,29 @@ const validateAddProductVideo = (req, res, next) => {
         });
     }
 
-    if (typeof StorageKey !== "string" || !StorageKey.trim() || StorageKey.length > 500) {
+    if (!req.file && (typeof StorageKey !== "string" || !StorageKey.trim() || StorageKey.length > 500)) {
         return res.status(400).json({
             success: false,
             message: "StorageKey is required and must not exceed 500 characters."
         });
     }
 
-    if (typeof OriginalFileName !== "string" || !OriginalFileName.trim() ||
-        OriginalFileName.length > 255) {
+    if (!req.file && (typeof OriginalFileName !== "string" || !OriginalFileName.trim() ||
+        OriginalFileName.length > 255)) {
         return res.status(400).json({
             success: false,
             message: "Valid OriginalFileName is required."
         });
     }
 
-    if (typeof FileType !== "string" || !FileType.trim() || FileType.length > 50) {
+    if (!req.file && (typeof FileType !== "string" || !FileType.trim() || FileType.length > 50)) {
         return res.status(400).json({
             success: false,
             message: "Valid FileType is required."
         });
     }
 
-    if (!Number.isSafeInteger(Number(FileSize)) || Number(FileSize) <= 0) {
+    if (!req.file && (!Number.isSafeInteger(Number(FileSize)) || Number(FileSize) <= 0)) {
         return res.status(400).json({
             success: false,
             message: "FileSize must be a positive integer."
@@ -92,6 +92,7 @@ const validateAddProductVideo = (req, res, next) => {
     if (
         IsIllustrativePreview !== undefined &&
         typeof IsIllustrativePreview !== "boolean"
+        && !["true", "false"].includes(IsIllustrativePreview)
     ) {
         return res.status(400).json({
             success: false,
@@ -112,29 +113,29 @@ const validateUpdateProductVideo = (req, res, next) => {
         IsIllustrativePreview
     } = req.body;
 
-    if (typeof StorageKey !== "string" || !StorageKey.trim() || StorageKey.length > 500) {
+    if (!req.file && (typeof StorageKey !== "string" || !StorageKey.trim() || StorageKey.length > 500)) {
         return res.status(400).json({
             success: false,
             message: "Valid StorageKey is required."
         });
     }
 
-    if (typeof OriginalFileName !== "string" || !OriginalFileName.trim() ||
-        OriginalFileName.length > 255) {
+    if (!req.file && (typeof OriginalFileName !== "string" || !OriginalFileName.trim() ||
+        OriginalFileName.length > 255)) {
         return res.status(400).json({
             success: false,
             message: "Valid OriginalFileName is required."
         });
     }
 
-    if (typeof FileType !== "string" || !FileType.trim() || FileType.length > 50) {
+    if (!req.file && (typeof FileType !== "string" || !FileType.trim() || FileType.length > 50)) {
         return res.status(400).json({
             success: false,
             message: "Valid FileType is required."
         });
     }
 
-    if (!Number.isSafeInteger(Number(FileSize)) || Number(FileSize) <= 0) {
+    if (!req.file && (!Number.isSafeInteger(Number(FileSize)) || Number(FileSize) <= 0)) {
         return res.status(400).json({
             success: false,
             message: "FileSize must be a positive integer."
@@ -144,6 +145,7 @@ const validateUpdateProductVideo = (req, res, next) => {
     if (
         IsIllustrativePreview !== undefined &&
         typeof IsIllustrativePreview !== "boolean"
+        && !["true", "false"].includes(IsIllustrativePreview)
     ) {
         return res.status(400).json({
             success: false,

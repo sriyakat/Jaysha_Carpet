@@ -4,11 +4,13 @@ const router = express.Router();
 const controller = require("./productVideosController.js");
 const validation = require("./productVideosValidation.js");
 const adminAuth = require("../customer/adminAuthMiddleware.js");
+const { uploadProductVideo } = require("../../utils/mediaUpload");
 
 // Admin: Add video
 router.post(
     "/",
     adminAuth,
+    uploadProductVideo,
     validation.validateAddProductVideo,
     controller.addProductVideo
 );
@@ -17,6 +19,7 @@ router.post(
 router.put(
     "/:productVideoId",
     adminAuth,
+    uploadProductVideo,
     validation.validateId,
     validation.validateUpdateProductVideo,
     controller.updateProductVideo

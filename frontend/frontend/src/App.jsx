@@ -15,6 +15,10 @@ import ProductVideosPage from './modules/productVideos/pages/ProductVideosPage.j
 import WebsiteSettingsPage from './modules/websiteSettings/pages/WebsiteSettingsPage.jsx'
 const AdminDashboardPage = lazy(() => import('./modules/shared/components/AdminDashboardPage.jsx'))
 import HomepageBannersPage from './modules/homepageBanners/pages/HomepageBannersPage.jsx'
+import HomepageShowcasePage from './modules/homepageShowcase/pages/HomepageShowcasePage.jsx'
+const HomepageNewArrivalsPage = lazy(() => import('./modules/homepageNewArrivals/pages/HomepageNewArrivalsPage.jsx'))
+const CustomOrdersPage = lazy(() => import('./modules/customOrder/pages/CustomOrdersPage.jsx'))
+const BlogPage = lazy(() => import('./modules/blog/pages/BlogPage.jsx'))
 import SalesReportsPage from './modules/salesReport/pages/SalesReportsPage.jsx'
 import CouponsPage from './modules/coupon/pages/CouponsPage.jsx'
 import ReturnRequestsPage from './modules/returnRequest/pages/ReturnRequestsPage.jsx'
@@ -23,9 +27,17 @@ import AdminCustomersPage from './modules/customer/pages/AdminCustomersPage.jsx'
 function App() {
   const [session, setSession] = useState(() => {
     try {
-      return JSON.parse(sessionStorage.getItem('admin-session') || 'null')
+      const savedSession = sessionStorage.getItem('admin-session')
+        || localStorage.getItem('admin-session')
+      const parsedSession = JSON.parse(savedSession || 'null')
+      if (parsedSession?.token && parsedSession?.user) {
+        sessionStorage.setItem('admin-session', JSON.stringify(parsedSession))
+        return parsedSession
+      }
+      return null
     } catch {
       sessionStorage.removeItem('admin-session')
+      localStorage.removeItem('admin-session')
       return null
     }
   })
@@ -45,6 +57,12 @@ function App() {
         '/admin/returns': 'returns',
         '/admin/coupons': 'coupons',
         '/admin/banners': 'banners',
+        '/admin/new-arrivals': 'new-arrivals',
+        '/admin/custom-orders': 'custom-orders',
+        '/admin/showcase': 'showcase',
+        '/admin/inspiration': 'inspiration',
+        '/admin/offers': 'offer',
+        '/admin/blog': 'blog',
         '/admin/reports': 'reports',
         '/admin/variants': 'variants',
         '/admin/reviews': 'reviews',
@@ -78,6 +96,12 @@ function App() {
       returns: '/admin/returns',
       coupons: '/admin/coupons',
       banners: '/admin/banners',
+      'new-arrivals': '/admin/new-arrivals',
+      'custom-orders': '/admin/custom-orders',
+      showcase: '/admin/showcase',
+      inspiration: '/admin/inspiration',
+      offer: '/admin/offers',
+      blog: '/admin/blog',
       reports: '/admin/reports',
       variants: '/admin/variants',
       reviews: '/admin/reviews',
@@ -88,9 +112,11 @@ function App() {
     window.history.replaceState(null, '', routes[module] || routes.categories)
   }
 
-  function handleLogin(data) {
+  function handleLogin(data, rememberMe = false) {
     const nextSession = { token: data.token, user: data.user }
     sessionStorage.setItem('admin-session', JSON.stringify(nextSession))
+    if (rememberMe) localStorage.setItem('admin-session', JSON.stringify(nextSession))
+    else localStorage.removeItem('admin-session')
     setSession(nextSession)
     setActiveModule('dashboard')
     window.history.replaceState(null, '', '/admin')
@@ -103,6 +129,7 @@ function App() {
 
   function handleLogout() {
     sessionStorage.removeItem('admin-session')
+    localStorage.removeItem('admin-session')
     setSession(null)
     setAuthMode('login')
     window.history.replaceState(null, '', '/admin/login')
@@ -151,6 +178,36 @@ function App() {
     }
     if (activeModule === 'banners') {
       return <HomepageBannersPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'new-arrivals') {
+      return (
+        <Suspense fallback={<div role="status">Loading New Arrivals management…</div>}>
+          <HomepageNewArrivalsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+        </Suspense>
+      )
+    }
+    if (activeModule === 'custom-orders') {
+      return (
+        <Suspense fallback={<div role="status">Loading custom order requests…</div>}>
+          <CustomOrdersPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+        </Suspense>
+      )
+    }
+    if (activeModule === 'showcase') {
+      return <HomepageShowcasePage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+    }
+    if (activeModule === 'inspiration') {
+      return <HomepageShowcasePage onLogout={handleLogout} onNavigate={navigateToModule} section="inspiration" user={session.user} />
+    }
+    if (activeModule === 'offer') {
+      return <HomepageShowcasePage onLogout={handleLogout} onNavigate={navigateToModule} section="offer" user={session.user} />
+    }
+    if (activeModule === 'blog') {
+      return (
+        <Suspense fallback={<div role="status">Loading blog management…</div>}>
+          <BlogPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />
+        </Suspense>
+      )
     }
     if (activeModule === 'reports') {
       return <SalesReportsPage onLogout={handleLogout} onNavigate={navigateToModule} user={session.user} />

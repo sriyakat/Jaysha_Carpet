@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../../category/components/Icon.jsx'
-import AdminNavigation from '../../shared/components/AdminNavigation.jsx'
+import AdminModuleLayout from '../../shared/components/AdminModuleLayout.jsx'
 import { getAdminOrderItems, getAdminOrders, updateAdminOrderStatus } from '../api/adminOrderApi.js'
 import './OrdersPage.css'
 
@@ -135,35 +135,7 @@ function OrdersPage({ user, onLogout, onNavigate }) {
   const totalRevenue = orders.reduce((total, order) => total + Number(orderValue(order, 'grandTotal', 'GrandTotal', 0)), 0)
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a aria-label="Jaysha Carpet admin home" className="brand" href="/admin" onClick={(event) => { event.preventDefault(); onNavigate('categories') }}>
-          <span className="brand-mark"><Icon name="grid" size={20} /></span>
-          <span>
-            <span className="brand-name">Jaysha Carpet</span>
-            <span className="brand-caption">STORE ADMIN</span>
-          </span>
-        </a>
-        <AdminNavigation activeModule="orders" onNavigate={onNavigate} />
-        <div className="sidebar-spacer" />
-        <div className="sidebar-note">
-          <h2 className="sidebar-note-title">Order management</h2>
-          <p>Review customer orders, delivery details, and purchased items.</p>
-        </div>
-      </aside>
-
-      <main className="main-area">
-        <header className="topbar">
-          <div className="breadcrumb"><span>Workspace</span><Icon name="arrow" size={13} /><strong>Orders</strong></div>
-          <div className="topbar-right">
-            <span className="topbar-date">Customer orders</span>
-            <span aria-label={user?.fullName || 'Jaysha Carpet admin'} className="avatar">
-              {(user?.fullName || 'JC').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
-            </span>
-            <button className="logout-button" onClick={onLogout} type="button">Sign out</button>
-          </div>
-        </header>
-
+    <AdminModuleLayout activeModule="orders" title="Orders" user={user} onLogout={onLogout} onNavigate={onNavigate}>
         <div className="page-content">
           <div className="page-heading">
             <div>
@@ -238,7 +210,6 @@ function OrdersPage({ user, onLogout, onNavigate }) {
             )}
           </section>
         </div>
-      </main>
 
       {selectedOrder && (
         <div className="orders-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedOrder(null) }}>
@@ -278,7 +249,7 @@ function OrdersPage({ user, onLogout, onNavigate }) {
           </section>
         </div>
       )}
-    </div>
+    </AdminModuleLayout>
   )
 }
 

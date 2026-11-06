@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../category/components/Icon.jsx'
-import { getBestSellingProducts, getPendingReportOrders, getReportSummary, getRevenueTrend } from '../../salesReport/api/adminSalesReportApi.js'
+import { getAdminCustomers } from '../../customer/api/adminCustomerApi.js'
+import { getProducts } from '../../product/api/productApi.js'
+import { getBestSellingProducts, getLowStockProducts, getPendingReportOrders, getRecentReportOrders, getReportSummary, getRevenueTrend } from '../../salesReport/api/adminSalesReportApi.js'
 import AdminModuleLayout from './AdminModuleLayout.jsx'
 import './AdminModulePage.css'
 
@@ -14,10 +16,29 @@ const sections = [
   { module: 'returns', title: 'Returns & refunds', description: 'Review cancellations, returns, and refund progress.', icon: 'box' },
   { module: 'coupons', title: 'Coupons & offers', description: 'Create discount codes and check their usage.', icon: 'sparkle' },
   { module: 'banners', title: 'Homepage banners', description: 'Schedule storefront promotions and hero campaigns.', icon: 'image' },
+  { module: 'new-arrivals', title: 'Homepage new arrivals', description: 'Choose and arrange the products featured in New Arrivals.', icon: 'image' },
+  { module: 'custom-orders', title: 'Custom carpet requests', description: 'Review custom sizes, colours and customer reference images.', icon: 'box' },
+  { module: 'showcase', title: 'Homepage showcase', description: 'Add and arrange homepage showcase image or video cards.', icon: 'image' },
+  { module: 'inspiration', title: 'Homepage inspiration', description: 'Manage the “Collected for considered homes” images, videos, and captions.', icon: 'image' },
+  { module: 'offer', title: 'Homepage offer', description: 'Set the homepage promotion image, offer copy, and button link.', icon: 'image' },
   { module: 'reports', title: 'Sales reports', description: 'Track revenue, best sellers, pending orders, and stock risk.', icon: 'grid' },
   { module: 'reviews', title: 'Reviews', description: 'Moderate customer feedback before it appears publicly.', icon: 'sparkle' },
   { module: 'notifications', title: 'Notifications', description: 'Create and review customer order notifications.', icon: 'sparkle' },
   { module: 'settings', title: 'Website settings', description: 'Update storefront identity, contact, and social links.', icon: 'edit' },
+]
+
+const quickActions = [
+  { module: 'products', title: 'Manage products', description: 'Add rugs and update listings.', icon: 'box' },
+  { module: 'orders', title: 'Process orders', description: 'Review and fulfill customer orders.', icon: 'box' },
+  { module: 'custom-orders', title: 'Custom requests', description: 'Review sizes, colours, and reference images.', icon: 'image' },
+  { module: 'inventory', title: 'Check inventory', description: 'Review stock and replenishment needs.', icon: 'category' },
+]
+
+const sectionGroups = [
+  { title: 'Products & catalog', modules: ['products', 'categories', 'variants', 'videos'] },
+  { title: 'Homepage', modules: ['banners', 'new-arrivals', 'showcase', 'inspiration', 'offer'] },
+  { title: 'Orders & customers', modules: ['orders', 'custom-orders', 'customers', 'returns', 'payments'] },
+  { title: 'Store tools & insights', modules: ['inventory', 'coupons', 'reports', 'reviews', 'notifications', 'settings'] },
 ]
 
 const monthOptions = [1, 3, 6, 12, 24]
@@ -232,8 +253,14 @@ function AdminDashboardPage({ user, onLogout, onNavigate }) {
   const [trend, setTrend] = useState([])
   const [bestSellers, setBestSellers] = useState([])
   const [pendingOrders, setPendingOrders] = useState([])
+  const [recentOrders, setRecentOrders] = useState([])
+  const [lowStockProducts, setLowStockProducts] = useState([])
+  const [customerCount, setCustomerCount] = useState(null)
+  const [productCount, setProductCount] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [supportingLoading, setSupportingLoading] = useState(true)
   const [error, setError] = useState('')
+  const [supportingError, setSupportingError] = useState('')
   const requestId = useRef(0)
 
   function selectMonthRange(value) {
@@ -288,6 +315,27 @@ function AdminDashboardPage({ user, onLogout, onNavigate }) {
     }
   }, [loadOverview])
 
+  useEffect(() => {
+    let active = true
+    Promise.allSettled([
+      getRecentReportOrders(),
+      getLowStockProducts(),
+      getAdminCustomers(),
+      getProducts(),
+    ]).then((results) => {
+      if (!active) return
+      const setters = [setRecentOrders, setLowStockProducts, (items) => setCustomerCount(items.length), (items) => setProductCount(items.length)]
+      const errors = []
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') setters[index](result.value)
+        else errors.push(result.reason?.message || 'Dashboard details could not be loaded.')
+      })
+      setSupportingError(errors.join(' · '))
+      setSupportingLoading(false)
+    })
+    return () => { active = false }
+  }, [])
+
   const revenueSeries = useMemo(
     () => filters.fromDate && filters.toDate && filters.fromDate <= filters.toDate
       ? buildRevenueSeries(trend, filters)
@@ -299,21 +347,22 @@ function AdminDashboardPage({ user, onLogout, onNavigate }) {
   const selectedPeriod = filters.fromDate && filters.toDate ? `${filters.fromDate} – ${filters.toDate}` : 'Select a date range'
   const revenue = getValue(summary, 'TotalRevenue', 'totalRevenue', 'Revenue', 'revenue')
   const orders = getValue(summary, 'TotalOrders', 'totalOrders', 'OrderCount', 'orderCount')
-  const averageOrder = getValue(summary, 'AverageOrderValue', 'averageOrderValue')
   const summaryPendingCount = getValue(summary, 'PendingOrders', 'pendingOrders')
   const pendingCount = summaryPendingCount === '' ? pendingOrders.length : summaryPendingCount
   const stats = [
     { label: 'Total revenue', value: money(revenue), icon: 'sparkle' },
-    { label: 'Orders', value: orders || '0', icon: 'box' },
-    { label: 'Average order value', value: money(averageOrder), icon: 'grid' },
-    { label: 'Pending orders', value: pendingCount, icon: 'category' },
+    { label: 'Total orders', value: orders || '0', icon: 'box' },
+    { label: 'Total customers', value: customerCount === null ? '—' : customerCount, icon: 'category' },
+    { label: 'Total products', value: productCount === null ? '—' : productCount, icon: 'image' },
+    { label: 'Pending orders', value: pendingCount, icon: 'warning' },
+    { label: 'Low stock products', value: supportingLoading ? '—' : lowStockProducts.length, icon: 'box' },
   ]
 
   return (
     <AdminModuleLayout activeModule="dashboard" title="Overview" user={user} onLogout={onLogout} onNavigate={onNavigate}>
       <section className="page-content module-page dashboard-page">
         <div className="module-heading dashboard-heading">
-          <div><p className="module-eyebrow">JAYSHA CARPET ADMIN</p><h1>Welcome to your workspace</h1><p>Store performance for the date range you select.</p></div>
+          <div><p className="module-eyebrow">JAYSHA CARPET ADMIN</p><h1>Welcome back, {user?.fullName || user?.FullName || 'Admin'}</h1><p>Your store at a glance. Choose a task or review what needs attention.</p></div>
           <div className="dashboard-period-controls">
             <label htmlFor="dashboard-month-range">Quick range</label>
             <select className="module-select" id="dashboard-month-range" onChange={(event) => selectMonthRange(event.target.value)} value={monthCount || 'custom'}>
@@ -329,6 +378,22 @@ function AdminDashboardPage({ user, onLogout, onNavigate }) {
         </div>
 
         {error && <p className="module-alert" role="alert">{error}</p>}
+        {supportingError && <p className="module-alert" role="alert">Some dashboard details could not be loaded: {supportingError}</p>}
+
+        <section aria-labelledby="dashboard-quick-actions-title" className="dashboard-easy-actions">
+          <div className="dashboard-easy-section-heading">
+            <div><h2 id="dashboard-quick-actions-title">Quick actions</h2><p>Jump straight to a common task.</p></div>
+          </div>
+          <div className="dashboard-easy-action-grid">
+            {quickActions.map((action) => (
+              <button className="dashboard-easy-action" key={action.module} onClick={() => onNavigate(action.module)} type="button">
+                <span className="dashboard-easy-action-icon"><Icon name={action.icon} size={18} /></span>
+                <span><strong>{action.title}</strong><small>{action.description}</small></span>
+                <span aria-hidden="true" className="dashboard-easy-action-arrow">→</span>
+              </button>
+            ))}
+          </div>
+        </section>
 
         <div className="dashboard-stat-grid">
           {stats.map((stat) => (
@@ -336,36 +401,106 @@ function AdminDashboardPage({ user, onLogout, onNavigate }) {
               <span className="dashboard-stat-icon"><Icon name={stat.icon} size={18} /></span>
               <span className="dashboard-stat-label">{stat.label}</span>
               <strong>{loading ? '—' : stat.value}</strong>
-              <small>{selectedPeriod}</small>
+              <small>{stat.label === 'Total revenue' || stat.label === 'Total orders' ? selectedPeriod : 'Store overview'}</small>
             </article>
           ))}
         </div>
 
-        <div className="dashboard-chart-grid">
-          <section className="module-panel dashboard-revenue-panel">
-            <div className="module-panel-heading"><div><h2>Revenue over time</h2><p>{chartInterval[0].toUpperCase() + chartInterval.slice(1)} revenue · {selectedPeriod}</p></div><span>{revenueSeries.length} periods</span></div>
-            {loading ? <div className="module-state">Loading revenue data…</div> : revenueSeries.length ? <RevenueLineChart data={revenueSeries} /> : <div className="module-state">No revenue data for this period.</div>}
+        <div className="dashboard-operations-grid">
+          <section className="module-panel">
+            <div className="module-panel-heading">
+              <div><h2>Recent orders</h2><p>Latest activity across your store</p></div>
+              <button className="module-button" onClick={() => onNavigate('orders')} type="button">View all</button>
+            </div>
+            {supportingLoading ? <div className="module-state">Loading recent orders…</div> : recentOrders.length === 0 ? <div className="module-state">No recent orders to show.</div> : (
+              <div className="module-table-wrap">
+                <table className="module-table dashboard-compact-table">
+                  <thead><tr><th>Order</th><th>Customer</th><th>Date</th><th>Amount</th><th>Payment</th><th>Status</th></tr></thead>
+                  <tbody>{recentOrders.slice(0, 6).map((order, index) => {
+                    const orderId = getValue(order, 'OrderNumber', 'orderNumber', 'OrderCode', 'orderCode', 'OrderId', 'orderId')
+                    const orderStatus = getValue(order, 'OrderStatus', 'orderStatus', 'Status', 'status') || '—'
+                    const paymentStatus = getValue(order, 'PaymentStatus', 'paymentStatus') || '—'
+                    return (
+                      <tr key={orderId || index}>
+                        <td><strong>#{orderId || '—'}</strong></td>
+                        <td>{getValue(order, 'CustomerName', 'customerName', 'FullName', 'fullName') || 'Customer'}</td>
+                        <td>{getValue(order, 'OrderDate', 'orderDate', 'CreatedAt', 'createdAt') ? new Date(getValue(order, 'OrderDate', 'orderDate', 'CreatedAt', 'createdAt')).toLocaleDateString('en-IN') : '—'}</td>
+                        <td>{money(getValue(order, 'TotalAmount', 'totalAmount', 'Amount', 'amount'))}</td>
+                        <td><span className="dashboard-status-pill">{paymentStatus}</span></td>
+                        <td><span className={`dashboard-status-pill ${String(orderStatus).toLowerCase().replace(/[^a-z]+/g, '-')}`}>{orderStatus}</span></td>
+                      </tr>
+                    )
+                  })}</tbody>
+                </table>
+              </div>
+            )}
           </section>
           <section className="module-panel">
-            <div className="module-panel-heading"><div><h2>Revenue by product</h2><p>Top products and remaining sales</p></div><span>Top 5</span></div>
-            {loading ? <div className="module-state">Loading product data…</div> : <RevenueDonut products={bestSellers} totalRevenue={revenue} />}
-          </section>
-          <section className="module-panel dashboard-products-panel">
-            <div className="module-panel-heading"><div><h2>Best-selling products</h2><p>Units sold in the selected period</p></div><span>Top 6</span></div>
-            {loading ? <div className="module-state">Loading product data…</div> : <ProductBarChart products={bestSellers} />}
+            <div className="module-panel-heading">
+              <div><h2>Low stock alerts</h2><p>Products that may need replenishment</p></div>
+              <button className="module-button" onClick={() => onNavigate('inventory')} type="button">Inventory</button>
+            </div>
+            {supportingLoading ? <div className="module-state">Checking stock levels…</div> : lowStockProducts.length === 0 ? <div className="module-state">No low stock products reported.</div> : (
+              <ul className="dashboard-low-stock-list">
+                {lowStockProducts.slice(0, 6).map((product, index) => {
+                  const quantity = getValue(product, 'AvailableStock', 'availableStock', 'StockQuantity', 'stockQuantity', 'Quantity', 'quantity')
+                  return (
+                    <li key={getValue(product, 'ProductId', 'productId') || index}>
+                      <span className="dashboard-low-stock-icon"><Icon name="box" size={16} /></span>
+                      <span className="dashboard-low-stock-name"><strong>{getValue(product, 'ProductName', 'productName', 'Name', 'name') || 'Product'}</strong><small>{getValue(product, 'Sku', 'sku', 'SKU') || 'Inventory item'}</small></span>
+                      <span className="dashboard-stock-count"><strong>{quantity || '0'}</strong><small>left</small></span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
           </section>
         </div>
 
-        <div className="dashboard-section-heading"><div><h2>Store management</h2><p>Choose a section to manage your store.</p></div><button className="module-button" onClick={() => onNavigate('reports')} type="button">View full reports</button></div>
-        <div className="dashboard-module-grid">
-          {sections.map((section) => (
-            <button className="dashboard-module-card" key={section.module} onClick={() => onNavigate(section.module)} type="button">
-              <span className="dashboard-module-icon"><Icon name={section.icon} size={19} /></span>
-              <span className="dashboard-module-copy"><strong>{section.title}</strong><span>{section.description}</span></span>
-              <span className="dashboard-module-arrow">→</span>
-            </button>
-          ))}
-        </div>
+        <section aria-labelledby="dashboard-management-title" className="dashboard-easy-management">
+          <div className="dashboard-easy-section-heading">
+            <div><h2 id="dashboard-management-title">Manage your store</h2><p>Everything is grouped by task, so it is easier to find.</p></div>
+          </div>
+          <div className="dashboard-easy-group-grid">
+            {sectionGroups.map((group) => (
+              <section className="dashboard-easy-group" key={group.title}>
+                <h3>{group.title}</h3>
+                <div className="dashboard-easy-link-list">
+                  {group.modules.map((module) => {
+                    const section = sections.find((item) => item.module === module)
+                    if (!section) return null
+                    return (
+                      <button key={section.module} onClick={() => onNavigate(section.module)} type="button">
+                        <Icon name={section.icon} size={16} />
+                        <span>{section.title}</span>
+                        <span aria-hidden="true">→</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+        </section>
+
+        <details className="dashboard-easy-analytics">
+          <summary><span><strong>Store performance</strong><small>Revenue trends and best-selling products · {selectedPeriod}</small></span><span className="dashboard-easy-analytics-toggle">View analytics</span></summary>
+          <div className="dashboard-chart-grid">
+            <section className="module-panel dashboard-revenue-panel">
+              <div className="module-panel-heading"><div><h2>Revenue over time</h2><p>{chartInterval[0].toUpperCase() + chartInterval.slice(1)} revenue · {selectedPeriod}</p></div><span>{revenueSeries.length} periods</span></div>
+              {loading ? <div className="module-state">Loading revenue data…</div> : revenueSeries.length ? <RevenueLineChart data={revenueSeries} /> : <div className="module-state">No revenue data for this period.</div>}
+            </section>
+            <section className="module-panel">
+              <div className="module-panel-heading"><div><h2>Revenue by product</h2><p>Top products and remaining sales</p></div><span>Top 5</span></div>
+              {loading ? <div className="module-state">Loading product data…</div> : <RevenueDonut products={bestSellers} totalRevenue={revenue} />}
+            </section>
+            <section className="module-panel dashboard-products-panel">
+              <div className="module-panel-heading"><div><h2>Best-selling products</h2><p>Units sold in the selected period</p></div><span>Top 6</span></div>
+              {loading ? <div className="module-state">Loading product data…</div> : <ProductBarChart products={bestSellers} />}
+            </section>
+          </div>
+          <button className="module-button dashboard-easy-report-link" onClick={() => onNavigate('reports')} type="button">Open full sales reports →</button>
+        </details>
       </section>
     </AdminModuleLayout>
   )

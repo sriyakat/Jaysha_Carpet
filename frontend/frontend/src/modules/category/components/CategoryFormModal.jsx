@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Icon from './Icon.jsx'
+import ImageUploadField from '../../shared/components/ImageUploadField.jsx'
 
 function toFormValues(category) {
   return {
@@ -13,6 +14,8 @@ function toFormValues(category) {
 
 function CategoryFormModal({ category, saving, error, onClose, onSubmit }) {
   const [values, setValues] = useState(() => toFormValues(category))
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [selectedImage, setSelectedImage] = useState(null)
   const [slugEdited, setSlugEdited] = useState(Boolean(category))
   const isEditing = Boolean(category)
 
@@ -28,10 +31,12 @@ function CategoryFormModal({ category, saving, error, onClose, onSubmit }) {
   function updateField(event) {
     const { name, value } = event.target
     setValues((current) => ({ ...current, [name]: value }))
+    setFieldErrors((current) => ({ ...current, [name]: '' }))
   }
 
   function updateName(event) {
     const categoryName = event.target.value
+    setFieldErrors((current) => ({ ...current, categoryName: '' }))
     setValues((current) => ({
       ...current,
       categoryName,
@@ -43,13 +48,28 @@ function CategoryFormModal({ category, saving, error, onClose, onSubmit }) {
 
   function submitForm(event) {
     event.preventDefault()
-    onSubmit({
-      categoryName: values.categoryName.trim(),
-      slug: values.slug.trim().toLowerCase(),
-      description: values.description.trim() || null,
-      imageStorageKey: values.imageStorageKey.trim() || null,
-      displayOrder: Number(values.displayOrder),
-    })
+    const errors = {}
+    if (!values.categoryName.trim()) errors.categoryName = 'श्रेणी का नाम दर्ज करें।'
+    if (!values.slug.trim()) errors.slug = 'श्रेणी का URL नाम दर्ज करें।'
+    else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(values.slug.trim().toLowerCase())) {
+      errors.slug = 'URL नाम में केवल छोटे अंग्रेज़ी अक्षर, अंक और हाइफ़न इस्तेमाल करें।'
+    }
+    if (!Number.isInteger(Number(values.displayOrder)) || Number(values.displayOrder) < 0) {
+      errors.displayOrder = 'क्रमांक शून्य या उससे बड़ी पूर्ण संख्या होनी चाहिए।'
+    }
+    if (Object.values(errors).some(Boolean)) {
+      setFieldErrors(errors)
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('categoryName', values.categoryName.trim())
+    formData.append('slug', values.slug.trim().toLowerCase())
+    formData.append('description', values.description.trim())
+    formData.append('imageStorageKey', values.imageStorageKey)
+    formData.append('displayOrder', String(Number(values.displayOrder)))
+    if (selectedImage) formData.append('image', selectedImage)
+    onSubmit(formData)
   }
 
   return (
@@ -81,7 +101,7 @@ function CategoryFormModal({ category, saving, error, onClose, onSubmit }) {
           </button>
         </header>
 
-        <form className="category-form" onSubmit={submitForm}>
+        <form className="category-form" noValidate onSubmit={submitForm}>
           <div className="form-grid">
             <div className="form-field full">
               <label htmlFor="categoryName">Category name <span>*</span></label>
@@ -92,9 +112,11 @@ function CategoryFormModal({ category, saving, error, onClose, onSubmit }) {
                 name="categoryName"
                 onChange={updateName}
                 placeholder="e.g. Handwoven Rugs"
-                required
+                aria-invalid={Boolean(fieldErrors.categoryName)}
+                className={fieldErrors.categoryName ? 'field-invalid' : ''}
                 value={values.categoryName}
               />
+              {fieldErrors.categoryName && <span className="field-error">{fieldErrors.categoryName}</span>}
             </div>
 
             <div className="form-field full">
@@ -108,10 +130,12 @@ function CategoryFormModal({ category, saving, error, onClose, onSubmit }) {
                   updateField(event)
                 }}
                 placeholder="handwoven-rugs"
-                required
+                aria-invalid={Boolean(fieldErrors.slug)}
+                className={fieldErrors.slug ? 'field-invalid' : ''}
                 value={values.slug}
               />
               <span className="form-hint">Link mein use hone wala unique naam.</span>
+              {fieldErrors.slug && <span className="field-error">{fieldErrors.slug}</span>}
             </div>
 
             <div className="form-field">
@@ -123,17 +147,24 @@ function CategoryFormModal({ category, saving, error, onClose, onSubmit }) {
                 onChange={updateField}
                 type="number"
                 value={values.displayOrder}
+                aria-invalid={Boolean(fieldErrors.displayOrder)}
+                className={fieldErrors.displayOrder ? 'field-invalid' : ''}
               />
+              {fieldErrors.displayOrder && <span className="field-error">{fieldErrors.displayOrder}</span>}
             </div>
 
-            <div className="form-field">
-              <label htmlFor="imageStorageKey">Image storage key</label>
-              <input
-                id="imageStorageKey"
-                maxLength={500}
-                name="imageStorageKey"
-                onChange={updateField}
-                placeholder="categories/rugs.jpg"
+            <div className="form-field full">
+              <label htmlFor="categoryImage">Category image</label>
+              <ImageUploadField
+                file={selectedImage}
+                hint="JPEG, PNG, WebP ya GIF · Maximum 15 MB"
+                id="categoryImage"
+                label="Category image"
+                onClear={() => {
+                  setSelectedImage(null)
+                  setValues((current) => ({ ...current, imageStorageKey: '' }))
+                }}
+                onFileChange={setSelectedImage}
                 value={values.imageStorageKey}
               />
             </div>

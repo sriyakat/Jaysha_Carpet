@@ -1,0 +1,19 @@
+[
+  {
+    "id": "0e52adc6-5156-41b9-896f-1a13c214361f",
+    "customerId": 2,
+    "customerName": "Riyakat",
+    "email": "riyakat786@gmail.com",
+    "mobileNumber": "+919598805934",
+    "width": 120,
+    "length": 144,
+    "sizeUnit": "in",
+    "colorName": "as per image",
+    "colorHex": "#52674f",
+    "notes": "mujhe same colour design and pattern me chahiye",
+    "imageUrl": "/uploads/media/custom-orders/0f24976d-281e-4351-bf86-9d68053c2124.jpg",
+    "status": "NEW",
+    "createdAt": "2026-11-04T12:50:45.412Z",
+    "updatedAt": "2026-11-04T12:50:45.412Z"
+  }
+]

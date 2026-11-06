@@ -1,0 +1,38 @@
+[
+  {
+    "id": "3288798d-27a7-436c-a07f-ea517b51efd9",
+    "title": "Cloud-Like Softness Underfoot",
+    "eyebrow": "LUXURIOUS SHAGGY COLLECTION",
+    "caption": "Transform your living space with our ultra-plush, high-pile New Zealand wool shaggy rug. Designed for ultimate comfort, warmth, and modern elegance.",
+    "buttonText": "Shop Shaggy Rugs",
+    "buttonUrl": "/collections/shaggy-rugs",
+    "displayOrder": 3,
+    "isActive": true,
+    "mediaType": "image",
+    "mediaUrl": "/uploads/media/homepage-offers/8b05013f-b457-4fa2-8486-3414f8b40244.jpg"
+  },
+  {
+    "id": "c74d4ca3-1fb2-48d7-81d0-aeca6fec2fdd",
+    "title": "Earthy Textures & Timeless Organic Charm",
+    "eyebrow": "JUTE & NATURAL FIBER COLLECTION",
+    "caption": "Bring organic warmth into your home with sustainably crafted natural fiber rugs. Perfect for adding rich texture, durability, and effortless earthy style to any living space.",
+    "buttonText": "Shop Jute Rugs",
+    "buttonUrl": "/collections/jute-natural-fiber-rugs",
+    "displayOrder": 1,
+    "isActive": true,
+    "mediaType": "video",
+    "mediaUrl": "/uploads/media/homepage-offers/25839c89-1023-4685-8c68-d87895920781.mp4"
+  },
+  {
+    "id": "c45b9c86-1a42-4606-9ef5-932a7efcbae9",
+    "title": "Step Into a Tranquil Botanical Haven",
+    "eyebrow": "MOSS GARDEN & NATURE COLLECTION",
+    "caption": "Bring the calming essence of nature indoors with our hand-tufted New Zealand wool moss garden rug. Featuring lush green tones and rich textured patterns for a serene, organic sanctuary.",
+    "buttonText": "Shop Moss Garden Rugs",
+    "buttonUrl": "/collections/moss-garden-rugs",
+    "displayOrder": 2,
+    "isActive": true,
+    "mediaType": "image",
+    "mediaUrl": "/uploads/media/homepage-offers/17d1986e-5773-4f8a-ac39-af0e01188f80.jpg"
+  }
+]

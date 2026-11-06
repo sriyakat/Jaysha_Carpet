@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../../category/components/Icon.jsx'
-import AdminNavigation from '../../shared/components/AdminNavigation.jsx'
+import AdminModuleLayout from '../../shared/components/AdminModuleLayout.jsx'
 import { createInventoryTransaction, getInventoryProducts, getInventoryTransactions } from '../api/adminInventoryApi.js'
 import './InventoryPage.css'
 
@@ -133,22 +133,7 @@ function InventoryPage({ user, onLogout, onNavigate }) {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a aria-label="Jaysha Carpet admin home" className="brand" href="/admin" onClick={(event) => { event.preventDefault(); onNavigate('categories') }}>
-          <span className="brand-mark"><Icon name="grid" size={20} /></span><span><span className="brand-name">Jaysha Carpet</span><span className="brand-caption">STORE ADMIN</span></span>
-        </a>
-        <AdminNavigation activeModule="inventory" onNavigate={onNavigate} />
-        <div className="sidebar-spacer" />
-        <div className="sidebar-note"><h2 className="sidebar-note-title">Stock, in good order</h2><p>Keep product quantities accurate and ready for every order.</p></div>
-      </aside>
-
-      <main className="main-area">
-        <header className="topbar">
-          <div className="breadcrumb"><span>Workspace</span><Icon name="arrow" size={13} /><strong>Inventory</strong></div>
-          <div className="topbar-right"><span className="topbar-date">Stock management</span><span aria-label={user?.fullName || 'Jaysha Carpet admin'} className="avatar">{(user?.fullName || 'JC').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span><button className="logout-button" onClick={onLogout} type="button">Sign out</button></div>
-        </header>
-
+    <AdminModuleLayout activeModule="inventory" title="Inventory" user={user} onLogout={onLogout} onNavigate={onNavigate}>
         <div className="page-content">
           <div className="page-heading inventory-heading">
             <div><p className="eyebrow"><span className="eyebrow-dot" /> Stock control</p><h1>Inventory</h1><p>Stock levels aur har movement ka clear record rakhein.</p></div>
@@ -190,10 +175,9 @@ function InventoryPage({ user, onLogout, onNavigate }) {
                   })}</tbody></table></div>}
           </section>
         </div>
-      </main>
 
       {modalAction && <div className="inventory-modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) setModalAction('') }}><section aria-labelledby="inventory-modal-title" aria-modal="true" className="inventory-modal" role="dialog"><header className="inventory-modal-header"><span className={`inventory-modal-icon ${ACTIONS[modalAction].tone}`}>{ACTIONS[modalAction].sign}</span><div><p className="eyebrow">Inventory update</p><h2 id="inventory-modal-title">{ACTIONS[modalAction].title}</h2><p>{ACTIONS[modalAction].description}</p></div><button aria-label="Close inventory form" className="inventory-close-button" disabled={saving} onClick={() => setModalAction('')} type="button"><Icon name="close" size={19} /></button></header><form className="inventory-modal-form" onSubmit={submitAction}>{formError && <div className="page-error" role="alert"><Icon name="warning" size={16} /><span>{formError}</span></div>}<label>Product<select onChange={(event) => setForm((current) => ({ ...current, ProductId: event.target.value }))} required value={form.ProductId}><option value="">Choose product</option>{products.map((product) => <option key={field(product, 'productId', 'ProductId')} value={field(product, 'productId', 'ProductId')}>{field(product, 'productName', 'ProductName')} · {field(product, 'sku', 'SKU', 'No SKU')} · {field(product, 'stockQuantity', 'StockQuantity', 0)} in stock</option>)}</select></label><label>{modalAction === 'ADJUSTMENT' ? 'New verified stock quantity' : 'Quantity'}<input min={modalAction === 'ADJUSTMENT' ? 0 : 1} onChange={(event) => setForm((current) => ({ ...current, Quantity: event.target.value }))} required type="number" value={form.Quantity} /></label>{modalAction === 'STOCK_OUT' && <label>Order number <span className="inventory-optional">Optional</span><input inputMode="numeric" onChange={(event) => setForm((current) => ({ ...current, OrderId: event.target.value }))} placeholder="Linked order ID" type="number" value={form.OrderId} /></label>}<label>Note <span className="inventory-optional">Optional</span><textarea maxLength={500} onChange={(event) => setForm((current) => ({ ...current, Remarks: event.target.value }))} placeholder="Add a note for this stock update" rows={3} value={form.Remarks} /></label><footer><button className="secondary-button" disabled={saving} onClick={() => setModalAction('')} type="button">Cancel</button><button className="primary-button" disabled={saving || !products.length} type="submit">{saving ? 'Saving...' : `Save ${ACTIONS[modalAction].label.toLowerCase()}`}</button></footer></form></section></div>}
-    </div>
+    </AdminModuleLayout>
   )
 }
 

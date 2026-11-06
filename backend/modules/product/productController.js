@@ -1,6 +1,22 @@
 
 const productService = require("../product/productService.js");
 
+const handleProductWriteError = (res, error, next) => {
+    const sqlNumber = error.number ?? error.originalError?.info?.number;
+    if (sqlNumber === 2601 || sqlNumber === 2627) {
+        return res.status(409).json({
+            success: false,
+            message: "SKU और URL slug पर डेटाबेस का unique नियम अभी चालू है। backend/database/migrations/allow_duplicate_product_skus.sql को SQL Server पर चलाएँ, फिर backend सर्वर restart करें।"
+        });
+    }
+
+    if (error.statusCode === 400 || error.statusCode === 409) {
+        return res.status(error.statusCode).json({ success: false, message: error.message });
+    }
+
+    return next(error);
+};
+
 
 // GET ALL PRODUCTS
 const getAllProducts = async (req, res, next) => {
@@ -73,7 +89,7 @@ const addProduct = async (req, res, next) => {
         });
 
     } catch (error) {
-        next(error);
+        return handleProductWriteError(res, error, next);
     }
 };
 
@@ -110,7 +126,7 @@ const updateProduct = async (req, res, next) => {
         });
 
     } catch (error) {
-        next(error);
+        return handleProductWriteError(res, error, next);
     }
 };
 

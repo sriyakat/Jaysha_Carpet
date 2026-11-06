@@ -15,7 +15,7 @@ export async function adminRequest(path, options = {}) {
     response = await fetch(`${API_BASE_URL.replace(/\/$/, '')}${path}`, {
       ...options,
       headers: {
-        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers,
       },

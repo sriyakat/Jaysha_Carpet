@@ -34,6 +34,16 @@ export async function getShopProducts() {
   return Array.isArray(payload?.data) ? payload.data : []
 }
 
+export async function getShopCategories() {
+  const payload = await request('/categories')
+  return Array.isArray(payload?.data) ? payload.data : []
+}
+
+export async function getPublicProductVariants(productId) {
+  const payload = await request(`/product-variants/product/${encodeURIComponent(productId)}`)
+  return Array.isArray(payload?.data) ? payload.data : []
+}
+
 function readCartId(data) {
   return data?.CartId ?? data?.cartId ?? data?.Id ?? data?.id
 }

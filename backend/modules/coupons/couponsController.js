@@ -1,4 +1,5 @@
 const service = require("./couponsService");
+const contentImageStorage = require("../../utils/contentImageStorage");
 
 const handleError = (res, error) => {
     console.error("Coupon Error:", error);
@@ -222,6 +223,8 @@ const deleteCoupon = async (req, res) => {
             req.user,
             Number(req.params.couponId)
         );
+
+        await contentImageStorage.removeContentImage("coupons", req.params.couponId);
 
         return res.status(200).json({
             success: true,

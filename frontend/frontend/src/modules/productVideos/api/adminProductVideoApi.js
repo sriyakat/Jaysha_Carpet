@@ -10,11 +10,17 @@ export async function getAdminProductVideos(filters = {}) {
 }
 
 export async function createProductVideo(data) {
-  return adminRequest('/product-videos', { method: 'POST', body: JSON.stringify(data) })
+  return adminRequest('/product-videos', {
+    method: 'POST',
+    body: data instanceof FormData ? data : JSON.stringify(data),
+  })
 }
 
 export async function updateProductVideo(id, data) {
-  return adminRequest(`/product-videos/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) })
+  return adminRequest(`/product-videos/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: data instanceof FormData ? data : JSON.stringify(data),
+  })
 }
 
 export async function deleteProductVideo(id) {

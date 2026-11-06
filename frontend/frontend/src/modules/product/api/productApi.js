@@ -122,7 +122,9 @@ export async function addProductImage(productId, image) {
 export function getProductImageUrl(storageKey) {
   if (!storageKey) return ''
   if (/^(https?:\/\/|data:image\/)/i.test(storageKey)) return storageKey
-  return new URL(storageKey.startsWith('/') ? storageKey : `/${storageKey}`, window.location.origin).href
+  if (storageKey.startsWith('/images/')) return storageKey
+  const apiOrigin = new URL(API_BASE_URL, window.location.origin).origin
+  return new URL(storageKey.startsWith('/') ? storageKey : `/${storageKey}`, apiOrigin).href
 }
 
 export async function setPrimaryProductImage(productId, imageId) {

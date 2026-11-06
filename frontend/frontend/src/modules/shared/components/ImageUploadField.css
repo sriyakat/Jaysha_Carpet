@@ -1,0 +1,90 @@
+.image-upload-input {
+  display: none;
+}
+
+.image-upload-dropzone,
+.image-upload-preview {
+  width: 100%;
+  min-height: 116px;
+  border: 1px dashed #c9c4b8;
+  border-radius: 12px;
+  background: #fbfaf7;
+}
+
+.image-upload-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 18px;
+  color: #333;
+  cursor: pointer;
+  text-align: center;
+}
+
+.image-upload-dropzone span,
+.image-upload-copy span {
+  color: #73716b;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.image-upload-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px;
+}
+
+.image-upload-preview img {
+  width: 132px;
+  height: 92px;
+  flex: 0 0 auto;
+  border-radius: 8px;
+  object-fit: cover;
+  background: #f0eee8;
+}
+
+.image-upload-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.image-upload-copy strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.image-upload-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.image-upload-actions button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #6b4c29;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.image-upload-error {
+  display: block;
+  margin-top: 6px;
+  color: #b42318;
+  font-size: 12px;
+}
+
+@media (max-width: 540px) {
+  .image-upload-preview img {
+    width: 92px;
+    height: 76px;
+  }
+}

@@ -10,6 +10,7 @@ const {
 } = require("./homepageBannersValidation");
 
 const adminAuth = require("../customer/adminAuthMiddleware.js");
+const { uploadHomepageBannerMedia } = require("../../utils/mediaUpload");
 
 // PUBLIC: GET ACTIVE BANNERS
 router.get(
@@ -21,6 +22,7 @@ router.get(
 router.post(
     "/",
     adminAuth,
+    uploadHomepageBannerMedia,
     validateBanner,
     controller.addBanner
 );
@@ -44,6 +46,7 @@ router.get(
 router.put(
     "/:bannerId",
     adminAuth,
+    uploadHomepageBannerMedia,
     validateBannerId,
     validateBanner,
     controller.updateBanner

@@ -1,0 +1,9 @@
+.banner-video-preview {
+  display: block;
+  width: min(100%, 520px);
+  max-height: 260px;
+  border: 1px solid #e6e9df;
+  border-radius: 12px;
+  background: #243128;
+  object-fit: contain;
+}

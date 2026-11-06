@@ -8,7 +8,31 @@ import {
 import CategoryFormModal from '../components/CategoryFormModal.jsx'
 import CategoryTable from '../components/CategoryTable.jsx'
 import Icon from '../components/Icon.jsx'
-import AdminNavigation from '../../shared/components/AdminNavigation.jsx'
+import AdminModuleLayout from '../../shared/components/AdminModuleLayout.jsx'
+
+const SUGGESTED_CARPET_CATEGORIES = [
+  ['Persian Carpets', 'persian-carpets'],
+  ['Oriental Carpets', 'oriental-carpets'],
+  ['Traditional Carpets', 'traditional-carpets'],
+  ['Modern Carpets', 'modern-carpets'],
+  ['Geometric Carpets', 'geometric-carpets'],
+  ['Floral Carpets', 'floral-carpets'],
+  ['Abstract Carpets', 'abstract-carpets'],
+  ['Handwoven Carpets', 'handwoven-carpets'],
+  ['Wool Carpets', 'wool-carpets'],
+  ['Cotton Carpets', 'cotton-carpets'],
+  ['Silk Carpets', 'silk-carpets'],
+  ['Jute Carpets', 'jute-carpets'],
+  ['Dhurries', 'dhurries'],
+  ['Kilim Carpets', 'kilim-carpets'],
+  ['Shaggy Carpets', 'shaggy-carpets'],
+  ['Carpet Runners', 'carpet-runners'],
+  ['Round Carpets', 'round-carpets'],
+  ['Outdoor Carpets', 'outdoor-carpets'],
+  ['Kids Carpets', 'kids-carpets'],
+  ['Prayer Carpets', 'prayer-carpets'],
+  ['Bath Mats', 'bath-mats'],
+]
 
 function categoryId(category) {
   return category?.categoryId ?? category?.CategoryId ?? category?.id ?? category?.Id
@@ -24,6 +48,8 @@ function CategoriesPage({ user, onLogout, onNavigate }) {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
   const [actionError, setActionError] = useState('')
+  const [actionSuccess, setActionSuccess] = useState('')
+  const [addingSuggested, setAddingSuggested] = useState(false)
 
   const loadCategories = useCallback(async () => {
     setLoading(true)
@@ -31,8 +57,10 @@ function CategoriesPage({ user, onLogout, onNavigate }) {
 
     try {
       setCategories(await getCategories())
+      return true
     } catch (error) {
       setListError(error.message)
+      return false
     } finally {
       setLoading(false)
     }
@@ -95,6 +123,20 @@ function CategoriesPage({ user, onLogout, onNavigate }) {
   }
 
   async function saveCategory(values) {
+    const categoryName = values.get('categoryName')?.trim().toLocaleLowerCase()
+    const slug = values.get('slug')?.trim().toLocaleLowerCase()
+    const duplicate = categories.some((category) => (
+      categoryId(category) !== categoryId(editingCategory)
+      && (
+        String(category.categoryName ?? category.CategoryName ?? '').trim().toLocaleLowerCase() === categoryName
+        || String(category.slug ?? category.Slug ?? '').trim().toLocaleLowerCase() === slug
+      )
+    ))
+    if (duplicate) {
+      setFormError('यह श्रेणी या इसका URL नाम पहले से मौजूद है। कृपया अलग नाम या URL नाम दर्ज करें।')
+      return
+    }
+
     setSaving(true)
     setFormError('')
 
@@ -115,65 +157,80 @@ function CategoriesPage({ user, onLogout, onNavigate }) {
     }
   }
 
+  async function addSuggestedCategories() {
+    const existingSlugs = new Set(categories.map((category) => (
+      String(category.slug ?? category.Slug ?? '').trim().toLowerCase()
+    )))
+    const existingNames = new Set(categories.map((category) => (
+      String(category.categoryName ?? category.CategoryName ?? '').trim().toLowerCase()
+    )))
+    const missing = SUGGESTED_CARPET_CATEGORIES.filter(([name, slug]) => (
+      !existingSlugs.has(slug) && !existingNames.has(name.toLowerCase())
+    ))
+    if (!missing.length) {
+      setActionSuccess('')
+      setActionError('कार्पेट की सभी सुझाई गई श्रेणियाँ पहले से मौजूद हैं।')
+      return
+    }
+
+    setAddingSuggested(true)
+    setActionError('')
+    setActionSuccess('')
+    const failed = []
+    try {
+      for (const [categoryName, slug] of missing) {
+        const formData = new FormData()
+        formData.append('categoryName', categoryName)
+        formData.append('slug', slug)
+        formData.append('description', `${categoryName} collection`)
+        formData.append('displayOrder', String(SUGGESTED_CARPET_CATEGORIES.findIndex((item) => item[1] === slug)))
+        try {
+          await createCategory(formData)
+        } catch (error) {
+          failed.push(`${categoryName}: ${error.message}`)
+        }
+      }
+
+      const loaded = await loadCategories()
+      if (!loaded) throw new Error('सूची रीफ़्रेश नहीं हो सकी।')
+      if (failed.length) {
+        setActionError(`कुछ श्रेणियाँ नहीं जुड़ सकीं: ${failed.join(' · ')}`)
+      } else {
+        setActionSuccess(`${missing.length} कार्पेट श्रेणियाँ सफलतापूर्वक जोड़ दी गईं।`)
+      }
+    } catch (error) {
+      setActionError(`श्रेणियाँ पूरी नहीं हो सकीं: ${error.message}`)
+    } finally {
+      setAddingSuggested(false)
+    }
+  }
+
   async function removeCategory(category) {
-    const name = category?.categoryName ?? category?.CategoryName ?? 'this category'
+    const name = category?.categoryName ?? category?.CategoryName ?? 'यह श्रेणी'
     const id = categoryId(category)
 
     if (id === undefined || id === null) {
-      setActionError('Is category ka ID nahi mila, isliye ise delete nahi kiya ja sakta.')
+      setActionError('श्रेणी की जानकारी नहीं मिली, इसलिए इसे हटाया नहीं जा सकता।')
       return
     }
 
     if (!window.confirm(`"${name}" ko delete karna chahte hain?`)) return
 
     setActionError('')
+    setActionSuccess('')
 
     try {
       await deleteCategory(id)
       await loadCategories()
     } catch (error) {
-      setActionError(error.message)
+      setActionError(`श्रेणी हटाई नहीं जा सकी: ${error.message}`)
     }
   }
 
   const selectedCategory = editingCategory || (isAdding ? null : undefined)
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a aria-label="Jaysha Carpet admin home" className="brand" href="/admin">
-          <span className="brand-mark"><Icon name="grid" size={20} /></span>
-          <span>
-            <span className="brand-name">Jaysha Carpet</span>
-            <span className="brand-caption">STORE ADMIN</span>
-          </span>
-        </a>
-
-        <AdminNavigation activeModule="categories" onNavigate={onNavigate} />
-
-        <div className="sidebar-spacer" />
-        <div className="sidebar-note">
-          <h2 className="sidebar-note-title">Keep your catalog tidy</h2>
-          <p>Clear categories help customers find the right carpet faster.</p>
-        </div>
-      </aside>
-
-      <main className="main-area">
-        <header className="topbar">
-          <div className="breadcrumb">
-            <span>Workspace</span>
-            <Icon name="arrow" size={13} />
-            <strong>Categories</strong>
-          </div>
-          <div className="topbar-right">
-            <span className="topbar-date">Catalog management</span>
-            <span aria-label={user?.fullName || 'Jaysha Carpet admin'} className="avatar">
-              {(user?.fullName || 'JC').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
-            </span>
-            <button className="logout-button" onClick={onLogout} type="button">Sign out</button>
-          </div>
-        </header>
-
+    <AdminModuleLayout activeModule="categories" title="Categories" user={user} onLogout={onLogout} onNavigate={onNavigate}>
         <div className="page-content">
           <div className="page-heading">
             <div>
@@ -181,10 +238,15 @@ function CategoriesPage({ user, onLogout, onNavigate }) {
               <h1>Categories</h1>
               <p>Apne carpet collections ko organize aur manage karein.</p>
             </div>
-            <button className="primary-button" onClick={openCreateForm} type="button">
-              <Icon name="plus" size={17} />
-              Add category
-            </button>
+            <div className="category-heading-actions">
+              <button className="secondary-button" disabled={addingSuggested || loading} onClick={addSuggestedCategories} type="button">
+                {addingSuggested ? 'श्रेणियाँ जोड़ी जा रही हैं…' : 'कार्पेट श्रेणियाँ जोड़ें'}
+              </button>
+              <button className="primary-button" onClick={openCreateForm} type="button">
+                <Icon name="plus" size={17} />
+                Add category
+              </button>
+            </div>
             <div aria-hidden="true" className="hero-ornament">
               <span className="ornament-ring ring-one" />
               <span className="ornament-ring ring-two" />
@@ -198,6 +260,7 @@ function CategoriesPage({ user, onLogout, onNavigate }) {
               <span>{actionError}</span>
             </div>
           )}
+          {actionSuccess && <div className="page-success" role="status">{actionSuccess}</div>}
 
           <div className="overview-grid">
             <article className="overview-card">
@@ -234,7 +297,6 @@ function CategoriesPage({ user, onLogout, onNavigate }) {
             search={search}
           />
         </div>
-      </main>
 
       {isAdding && (
         <CategoryFormModal
@@ -253,7 +315,7 @@ function CategoriesPage({ user, onLogout, onNavigate }) {
           saving={saving}
         />
       )}
-    </div>
+    </AdminModuleLayout>
   )
 }
 

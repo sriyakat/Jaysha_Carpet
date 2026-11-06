@@ -10,7 +10,7 @@ const allowedTypes = new Set([
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-        fileSize: 5 * 1024 * 1024,
+        fileSize: 15 * 1024 * 1024,
         files: 1
     },
     fileFilter: (req, file, callback) => {
@@ -39,7 +39,7 @@ function uploadProductImage(req, res, next) {
         res.status(statusCode).json({
             success: false,
             message: error.code === "LIMIT_FILE_SIZE"
-                ? "Image size must be 5 MB or less."
+                ? "Image size must be 15 MB or less."
                 : error.message
         });
     });

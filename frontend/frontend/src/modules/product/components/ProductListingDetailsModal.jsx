@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../../category/components/Icon.jsx'
+import { getProductImageUrl } from '../api/productApi.js'
 import { createProductVideo, deleteProductVideo, getAdminProductVideos } from '../../productVideos/api/adminProductVideoApi.js'
 import { createVariant, getAdminVariants, setVariantActive, updateVariant } from '../../productVariant/api/productVariantApi.js'
+import ImageUploadField from '../../shared/components/ImageUploadField.jsx'
+import { deleteContentImage, getContentImageMap, uploadContentImage } from '../../shared/api/contentImageApi.js'
 
 function value(item, camel, pascal, fallback = '') {
   return item?.[camel] ?? item?.[pascal] ?? fallback
@@ -21,12 +24,31 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
   const [formError, setFormError] = useState('')
   const [editingSize, setEditingSize] = useState(null)
   const [sizeForm, setSizeForm] = useState({ SizeLabel: '', Price: '', DiscountPrice: '', StockQuantity: '0' })
-  const [videoForm, setVideoForm] = useState({ StorageKey: '', IsIllustrativePreview: false })
+  const [sizeImageMap, setSizeImageMap] = useState({})
+  const [sizeImageFile, setSizeImageFile] = useState(null)
+  const [sizeImageKey, setSizeImageKey] = useState('')
+  const [sizeImageRemoved, setSizeImageRemoved] = useState(false)
+  const [videoForm, setVideoForm] = useState({ File: null, IsIllustrativePreview: false })
+  const [videoPreview, setVideoPreview] = useState('')
+  const videoInputRef = useRef(null)
+  const videoPreviewUrl = useRef('')
   const savingRef = useRef(saving)
 
   useEffect(() => {
     savingRef.current = saving
   }, [saving])
+
+  useEffect(() => () => {
+    if (videoPreviewUrl.current) URL.revokeObjectURL(videoPreviewUrl.current)
+  }, [])
+
+  function chooseVideo(event) {
+    const file = event.target.files?.[0] || null
+    if (videoPreviewUrl.current) URL.revokeObjectURL(videoPreviewUrl.current)
+    videoPreviewUrl.current = file ? URL.createObjectURL(file) : ''
+    setVideoForm({ ...videoForm, File: file })
+    setVideoPreview(videoPreviewUrl.current)
+  }
 
   const loadDetails = useCallback(async () => {
     setLoading(true)
@@ -34,9 +56,24 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
     const results = await Promise.allSettled([
       getAdminVariants({ productId: String(productId), isActive: '' }),
       getAdminProductVideos({ productId: String(productId), isIllustrativePreview: '' }),
+      getContentImageMap('variants'),
     ])
-    if (results[0].status === 'fulfilled') setSizes(results[0].value)
-    else setError(results[0].reason?.message || 'Product sizes load nahi ho sake.')
+    if (results[2].status === 'fulfilled') {
+      const images = results[2].value
+      setSizeImageMap(images)
+      if (results[0].status === 'fulfilled') {
+        setSizes(results[0].value.map((size) => ({
+          ...size,
+          imageStorageKey: images[String(value(size, 'productVariantId', 'ProductVariantId'))] || '',
+        })))
+      }
+    } else {
+      setError((current) => [current, results[2].reason?.message].filter(Boolean).join(' · '))
+      if (results[0].status === 'fulfilled') setSizes(results[0].value)
+    }
+    if (results[0].status === 'rejected') {
+      setError((current) => [current, results[0].reason?.message || 'Product sizes load nahi ho sake.'].filter(Boolean).join(' · '))
+    }
     if (results[1].status === 'fulfilled') setVideos(results[1].value)
     else setError((current) => [current, results[1].reason?.message].filter(Boolean).join(' · '))
     setLoading(false)
@@ -57,6 +94,9 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
 
   function startEditSize(size) {
     setEditingSize(size)
+    setSizeImageFile(null)
+    setSizeImageKey(sizeImageMap[String(value(size, 'productVariantId', 'ProductVariantId'))] || '')
+    setSizeImageRemoved(false)
     setSizeForm({
       SizeLabel: value(size, 'sizeLabel', 'SizeLabel'),
       Price: String(value(size, 'price', 'Price')),
@@ -78,14 +118,35 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
       StockQuantity: Number(sizeForm.StockQuantity),
       ...(editingSize ? { IsActive: isEnabled(value(editingSize, 'isActive', 'IsActive', true)) } : {}),
     }
+    let savedVariant
     try {
-      if (editingSize) await updateVariant(value(editingSize, 'productVariantId', 'ProductVariantId'), data)
-      else await createVariant(data)
+      savedVariant = editingSize
+        ? await updateVariant(value(editingSize, 'productVariantId', 'ProductVariantId'), data)
+        : await createVariant(data)
+    } catch (saveError) {
+      setFormError(saveError.message)
+      setSaving(false)
+      return
+    }
+
+    const variantId = editingSize
+      ? value(editingSize, 'productVariantId', 'ProductVariantId')
+      : value(savedVariant?.data, 'productVariantId', 'ProductVariantId')
+    try {
+      if (sizeImageFile) await uploadContentImage('variants', variantId, sizeImageFile)
+      else if (sizeImageRemoved && variantId) await deleteContentImage('variants', variantId)
       setEditingSize(null)
       setSizeForm({ SizeLabel: '', Price: '', DiscountPrice: '', StockQuantity: '0' })
       await loadDetails()
-    } catch (saveError) {
-      setFormError(saveError.message)
+      setSizeImageFile(null)
+      setSizeImageKey('')
+      setSizeImageRemoved(false)
+    } catch (imageError) {
+      if (!editingSize && variantId) {
+        setEditingSize(savedVariant?.data || { ProductVariantId: variantId })
+      }
+      setFormError(`Size save ho gaya, lekin image save nahi hui: ${imageError.message}`)
+      await loadDetails()
     } finally {
       setSaving(false)
     }
@@ -109,24 +170,32 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
 
   async function saveVideo(event) {
     event.preventDefault()
+    if (!videoForm.File) {
+      setFormError('Apni gallery se video select karein.')
+      return
+    }
+    if (videoForm.File.size > 100 * 1024 * 1024) {
+      setFormError('Video size 100 MB ya usse kam honi chahiye.')
+      return
+    }
+    if (!['video/mp4', 'video/webm', 'video/ogg'].includes(videoForm.File.type)) {
+      setFormError('Sirf MP4, WebM ya OGG video select karein.')
+      return
+    }
+
     setSaving(true)
     setFormError('')
     try {
-      const url = new URL(videoForm.StorageKey.trim())
-      if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Valid HTTPS video URL dalein.')
-      const extension = url.pathname.split('.').pop()?.toLowerCase()
-      const fileTypes = { mp4: 'video/mp4', webm: 'video/webm', ogg: 'video/ogg' }
-      if (!fileTypes[extension]) throw new Error('Direct video file URL use karein. MP4, WebM ya OGG supported hai; YouTube page link nahi.')
-      const fileName = decodeURIComponent(url.pathname.split('/').filter(Boolean).at(-1) || url.hostname)
-      await createProductVideo({
-        ProductId: Number(productId),
-        StorageKey: url.href,
-        OriginalFileName: fileName.slice(0, 255),
-        FileType: fileTypes[extension],
-        FileSize: 1,
-        IsIllustrativePreview: videoForm.IsIllustrativePreview,
-      })
-      setVideoForm({ StorageKey: '', IsIllustrativePreview: false })
+      const formData = new FormData()
+      formData.append('ProductId', String(productId))
+      formData.append('IsIllustrativePreview', String(videoForm.IsIllustrativePreview))
+      formData.append('video', videoForm.File)
+      await createProductVideo(formData)
+      setVideoForm({ File: null, IsIllustrativePreview: false })
+      if (videoPreviewUrl.current) URL.revokeObjectURL(videoPreviewUrl.current)
+      videoPreviewUrl.current = ''
+      setVideoPreview('')
+      if (videoInputRef.current) videoInputRef.current.value = ''
       await loadDetails()
     } catch (saveError) {
       setFormError(saveError.message || 'Video link add nahi ho saka.')
@@ -158,7 +227,7 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
         <header className="modal-header">
           <div>
             <h2 id="listing-details-title">Sizes &amp; videos</h2>
-            <p>{value(product, 'productName', 'ProductName', 'Product')} · Set size-wise price and add a hosted video link.</p>
+            <p>{value(product, 'productName', 'ProductName', 'Product')} · Set size-wise pricing and upload product videos.</p>
           </div>
           <button aria-label="Close dialog" className="icon-button modal-close" disabled={saving} onClick={onClose} type="button"><Icon name="close" /></button>
         </header>
@@ -173,6 +242,7 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
           <div className="listing-details-body">
             <form className="listing-detail-form" onSubmit={saveSize}>
               <h3>{editingSize ? 'Edit size' : 'Add a size'}</h3>
+              <div className="module-field"><span>Size image (optional)</span><ImageUploadField file={sizeImageFile} hint="JPEG, PNG, WebP ya GIF · Maximum 15 MB" id="variantSizeImage" label="Size image" onClear={() => { setSizeImageFile(null); setSizeImageKey(''); setSizeImageRemoved(true) }} onFileChange={(file) => { setSizeImageFile(file); setSizeImageRemoved(false) }} value={sizeImageKey} /></div>
               <div className="listing-detail-form-grid">
                 <label className="module-field">Size label<input className="module-input" maxLength="100" onChange={(event) => setSizeForm({ ...sizeForm, SizeLabel: event.target.value })} placeholder="e.g. 5 x 8 ft" required value={sizeForm.SizeLabel} /></label>
                 <label className="module-field">Price (₹)<input className="module-input" min="0.01" onChange={(event) => setSizeForm({ ...sizeForm, Price: event.target.value })} required step="0.01" type="number" value={sizeForm.Price} /></label>
@@ -181,7 +251,7 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
               </div>
               {formError && <p className="module-alert" role="alert">{formError}</p>}
               <div className="listing-detail-form-actions">
-                {editingSize && <button className="module-button" disabled={saving} onClick={() => { setEditingSize(null); setFormError(''); setSizeForm({ SizeLabel: '', Price: '', DiscountPrice: '', StockQuantity: '0' }) }} type="button">Cancel edit</button>}
+                {editingSize && <button className="module-button" disabled={saving} onClick={() => { setEditingSize(null); setSizeImageFile(null); setSizeImageKey(''); setSizeImageRemoved(false); setFormError(''); setSizeForm({ SizeLabel: '', Price: '', DiscountPrice: '', StockQuantity: '0' }) }} type="button">Cancel edit</button>}
                 <button className="module-button primary" disabled={saving} type="submit">{saving ? 'Saving…' : editingSize ? 'Save size' : 'Add size'}</button>
               </div>
             </form>
@@ -195,7 +265,7 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
                     const active = isEnabled(value(size, 'isActive', 'IsActive', true))
                     return (
                       <article className="listing-size-item" key={id}>
-                        <div><strong>{value(size, 'sizeLabel', 'SizeLabel')}</strong><span>{value(size, 'stockQuantity', 'StockQuantity', 0)} in stock · {active ? 'Active' : 'Inactive'}</span></div>
+                        <div>{value(size, 'imageStorageKey', 'ImageStorageKey') && <img alt="" className="module-image-thumbnail" src={getProductImageUrl(value(size, 'imageStorageKey', 'ImageStorageKey'))} />}<strong>{value(size, 'sizeLabel', 'SizeLabel')}</strong><span>{value(size, 'stockQuantity', 'StockQuantity', 0)} in stock · {active ? 'Active' : 'Inactive'}</span></div>
                         <strong>₹{value(size, 'discountPrice', 'DiscountPrice') ?? value(size, 'price', 'Price')}</strong>
                         <div className="module-row-actions">
                           <button className="module-button" disabled={saving} onClick={() => startEditSize(size)} type="button">Edit</button>
@@ -212,8 +282,9 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
           <div className="listing-details-body">
             <form className="listing-detail-form" onSubmit={saveVideo}>
               <h3>Add a product video</h3>
-              <p className="listing-detail-help">Video file ko apne hosting par upload karke direct MP4, WebM ya OGG URL paste karein. YouTube page link player mein nahi chalega.</p>
-              <label className="module-field">Direct video file URL<input autoComplete="url" className="module-input" maxLength="500" onChange={(event) => setVideoForm({ ...videoForm, StorageKey: event.target.value })} placeholder="https://example.com/rug-video.mp4" required type="url" value={videoForm.StorageKey} /></label>
+              <p className="listing-detail-help">Apne device ki gallery se MP4, WebM ya OGG video upload karein. Maximum 100 MB.</p>
+              <label className="module-field">Video file<input accept="video/mp4,video/webm,video/ogg" className="module-input" onChange={chooseVideo} ref={videoInputRef} required type="file" /></label>
+              {videoPreview && <video className="product-video-upload-preview" controls preload="metadata" src={videoPreview} />}
               <label className="module-checkbox"><input checked={videoForm.IsIllustrativePreview} onChange={(event) => setVideoForm({ ...videoForm, IsIllustrativePreview: event.target.checked })} type="checkbox" />Illustrative preview</label>
               {formError && <p className="module-alert" role="alert">{formError}</p>}
               <div className="listing-detail-form-actions"><button className="module-button primary" disabled={saving} type="submit">{saving ? 'Adding…' : 'Add video link'}</button></div>
@@ -225,10 +296,10 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
                 <div className="listing-size-list">
                   {videos.map((video) => {
                     const id = value(video, 'productVideoId', 'ProductVideoId')
-                    const url = value(video, 'storageKey', 'StorageKey')
                     return (
                       <article className="listing-video-item" key={id}>
-                        <div><strong>{value(video, 'originalFileName', 'OriginalFileName', 'Product video')}</strong><a href={url} rel="noreferrer" target="_blank">{url}</a></div>
+                        <div><strong>{value(video, 'originalFileName', 'OriginalFileName', 'Product video')}</strong><span>Uploaded video</span></div>
+                        <video aria-label={value(video, 'originalFileName', 'OriginalFileName', 'Product video')} controls preload="metadata" src={getProductImageUrl(value(video, 'storageKey', 'StorageKey'))} />
                         <button aria-label="Delete video link" className="icon-button danger" disabled={saving} onClick={() => removeVideo(video)} title="Delete video link" type="button"><Icon name="trash" size={16} /></button>
                       </article>
                     )

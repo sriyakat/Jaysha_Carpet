@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getCategories } from '../../category/api/categoryApi.js'
 import Icon from '../../category/components/Icon.jsx'
-import AdminNavigation from '../../shared/components/AdminNavigation.jsx'
+import AdminModuleLayout from '../../shared/components/AdminModuleLayout.jsx'
 import ProductFormModal from '../components/ProductFormModal.jsx'
 import ProductImagesModal from '../components/ProductImagesModal.jsx'
+import ProductListingImage from '../components/ProductListingImage.jsx'
 import ProductListingDetailsModal from '../components/ProductListingDetailsModal.jsx'
+import ProductManagementSidebar from '../components/ProductManagementSidebar.jsx'
 import {
   createProduct,
   deleteProduct,
   getProduct,
-  getProductImageUrl,
   getProducts,
   setProductStatus,
   updateProduct,
@@ -41,6 +42,7 @@ function ProductsPage({ user, onLogout, onNavigate }) {
   const [editingProduct, setEditingProduct] = useState(null)
   const [imagesProduct, setImagesProduct] = useState(null)
   const [listingDetailsProduct, setListingDetailsProduct] = useState(null)
+  const [sidebarProduct, setSidebarProduct] = useState(null)
   const [isAdding, setIsAdding] = useState(false)
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
@@ -99,6 +101,25 @@ function ProductsPage({ user, onLogout, onNavigate }) {
       return matchesQuery && (!categoryFilter || productCategoryId === categoryFilter)
     })
   }, [products, search, categoryFilter])
+
+  const categoryListingSummary = useMemo(() => {
+    const summary = categories.map((category, index) => {
+      const id = readValue(category, 'categoryId', 'CategoryId', category?.id ?? category?.Id ?? index)
+      const name = readValue(category, 'categoryName', 'CategoryName', 'Unnamed category')
+      const categoryProducts = products.filter((product) => (
+        String(readValue(product, 'categoryId', 'CategoryId')) === String(id)
+      ))
+      return { id, name, products: categoryProducts }
+    })
+    const knownCategoryIds = new Set(summary.map((category) => String(category.id)))
+    const uncategorizedProducts = products.filter((product) => (
+      !knownCategoryIds.has(String(readValue(product, 'categoryId', 'CategoryId')))
+    ))
+    if (uncategorizedProducts.length) {
+      summary.push({ id: 'uncategorized', name: 'Uncategorized', products: uncategorizedProducts })
+    }
+    return summary
+  }, [categories, products])
 
   const activeCount = products.filter((item) => Boolean(readValue(item, 'isActive', 'IsActive', true))).length
   const featuredCount = products.filter((item) => Boolean(readValue(item, 'isFeatured', 'IsFeatured', false))).length
@@ -215,47 +236,13 @@ function ProductsPage({ user, onLogout, onNavigate }) {
   }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a aria-label="Jaysha Carpet admin home" className="brand" href="/admin" onClick={(event) => { event.preventDefault(); onNavigate('categories') }}>
-          <span className="brand-mark"><Icon name="grid" size={20} /></span>
-          <span>
-            <span className="brand-name">Jaysha Carpet</span>
-            <span className="brand-caption">STORE ADMIN</span>
-          </span>
-        </a>
-
-        <AdminNavigation activeModule="products" onNavigate={onNavigate} />
-
-        <div className="sidebar-spacer" />
-        <div className="sidebar-note">
-          <h2 className="sidebar-note-title">A catalog worth exploring</h2>
-          <p>Keep product details and inventory up to date for your customers.</p>
-        </div>
-      </aside>
-
-      <main className="main-area">
-        <header className="topbar">
-          <div className="breadcrumb">
-            <span>Workspace</span>
-            <Icon name="arrow" size={13} />
-            <strong>Product listing</strong>
-          </div>
-          <div className="topbar-right">
-            <span className="topbar-date">Catalog management</span>
-            <span aria-label={user?.fullName || 'Jaysha Carpet admin'} className="avatar">
-              {(user?.fullName || 'JC').split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
-            </span>
-            <button className="logout-button" onClick={onLogout} type="button">Sign out</button>
-          </div>
-        </header>
-
+    <AdminModuleLayout activeModule="products" title="Products" user={user} onLogout={onLogout} onNavigate={onNavigate}>
         <div className="page-content">
           <div className="page-heading">
             <div>
               <p className="eyebrow"><span className="eyebrow-dot" /> CATALOG SETUP</p>
               <h1>Product listing</h1>
-              <p>Product add karein, phir usi listing se photos, sizes aur video link manage karein.</p>
+              <p>Product add karein, phir listing sidebar se photos, sizes, videos, prices aur coupons manage karein.</p>
             </div>
             <button className="primary-button" onClick={openCreateForm} type="button">
               <Icon name="plus" size={17} />
@@ -293,7 +280,7 @@ function ProductsPage({ user, onLogout, onNavigate }) {
           <ol aria-label="How to create a product listing" className="listing-setup-steps">
             <li><span>1</span><div><strong>Add product</strong><small>Product name, category and price</small></div></li>
             <li><span>2</span><div><strong>Add images</strong><small>Upload product photos</small></div></li>
-            <li><span>3</span><div><strong>Add sizes &amp; video</strong><small>Set size-wise price, stock and video link</small></div></li>
+            <li><span>3</span><div><strong>Manage listing</strong><small>Set sizes, video, offer price and coupons</small></div></li>
           </ol>
 
           <section aria-label="Products" className="table-card">
@@ -377,7 +364,11 @@ function ProductsPage({ user, onLogout, onNavigate }) {
                           <tr key={id}>
                             <td>
                               <div className="category-name-cell">
-                                <span className="category-thumb product-thumb">{primaryImage ? <img alt="" loading="lazy" src={getProductImageUrl(primaryImage)} /> : <Icon name="box" size={17} />}</span>
+                                <ProductListingImage
+                                  primaryImage={primaryImage}
+                                  productId={productId(product)}
+                                  productName={name}
+                                />
                                 <span>
                                   <span className="category-name">{name}{isFeatured && <span className="featured-label">Featured</span>}</span>
                                   <span className="category-id">SKU: {sku}</span>
@@ -391,45 +382,12 @@ function ProductsPage({ user, onLogout, onNavigate }) {
                             <td>
                               <div className="row-actions listing-row-actions">
                                 <button
-                                  aria-label={`Add or manage images for ${name}`}
-                                  className="icon-button"
+                                  aria-label={`Manage ${name}`}
+                                  className="icon-button listing-manage-button"
                                   disabled={saving || isBusy}
-                                  onClick={() => openImages(product)}
-                                  title="Add or manage product images"
+                                  onClick={() => setSidebarProduct(product)}
                                   type="button"
-                                ><Icon name="image" size={16} /><span>Images</span></button>
-                                <button
-                                  aria-label={`Add or manage sizes and videos for ${name}`}
-                                  className="icon-button listing-details-button"
-                                  disabled={saving || isBusy}
-                                  onClick={() => setListingDetailsProduct(product)}
-                                  title="Manage sizes, prices, stock and video links"
-                                  type="button"
-                                ><Icon name="box" size={16} /><span>Sizes &amp; videos</span></button>
-                                <button
-                                  aria-label={`Edit ${name}`}
-                                  className="icon-button"
-                                  disabled={saving || isBusy}
-                                  onClick={() => openEditForm(product)}
-                                  title="Edit product"
-                                  type="button"
-                                ><Icon name="edit" size={16} /></button>
-                                <button
-                                  aria-label={`${isActive ? 'Deactivate' : 'Activate'} ${name}`}
-                                  className="icon-button"
-                                  disabled={saving || isBusy}
-                                  onClick={() => changeStatus(product)}
-                                  title={isActive ? 'Deactivate product' : 'Activate product'}
-                                  type="button"
-                                ><Icon name="sparkle" size={16} /></button>
-                                <button
-                                  aria-label={`Delete ${name}`}
-                                  className="icon-button danger"
-                                  disabled={saving || isBusy}
-                                  onClick={() => removeProduct(product)}
-                                  title="Delete product"
-                                  type="button"
-                                ><Icon name="trash" size={16} /></button>
+                                ><Icon name="edit" size={16} /><span>Manage</span></button>
                               </div>
                             </td>
                           </tr>
@@ -445,8 +403,52 @@ function ProductsPage({ user, onLogout, onNavigate }) {
               </>
             )}
           </section>
+
+          <section aria-label="Products grouped by category" className="category-listing-summary">
+            <div className="category-listing-heading">
+              <div>
+                <p className="eyebrow"><span className="eyebrow-dot" /> CATALOG BREAKDOWN</p>
+                <h2>Category-wise listings</h2>
+                <p>Har category mein kitne products listed hain, yahan dekhein.</p>
+              </div>
+              <span>{products.length} total listings</span>
+            </div>
+            {loading ? (
+              <div aria-live="polite" className="loading-state"><span className="spinner" /><span>Category listings load ho rahi hain...</span></div>
+            ) : categoryListingSummary.length === 0 ? (
+              <div className="category-listing-empty">Products add karne ke baad category-wise listing yahan dikhegi.</div>
+            ) : (
+              <div className="category-listing-grid">
+                {categoryListingSummary.map((category) => (
+                  <article className="category-listing-card" key={category.id}>
+                    <div className="category-listing-card-heading">
+                      <span className="overview-icon"><Icon name="category" size={18} /></span>
+                      <span className="category-listing-count">{category.products.length}</span>
+                    </div>
+                    <h3>{category.name}</h3>
+                    {category.products.length ? (
+                      <ul>
+                        {category.products.slice(0, 3).map((product, index) => (
+                          <li key={productId(product) ?? index}>{readValue(product, 'productName', 'ProductName', 'Unnamed product')}</li>
+                        ))}
+                        {category.products.length > 3 && <li className="category-listing-more">aur {category.products.length - 3} products</li>}
+                      </ul>
+                    ) : <p className="category-listing-no-products">Abhi koi product nahi</p>}
+                    <button
+                      className="category-listing-link"
+                      disabled={!category.products.length || category.id === 'uncategorized'}
+                      onClick={() => {
+                        setCategoryFilter(String(category.id))
+                        document.querySelector('.table-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }}
+                      type="button"
+                    >Listings dekhein <Icon name="arrow" size={14} /></button>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
-      </main>
 
       {(isAdding || editingProduct) && (
         <ProductFormModal
@@ -472,7 +474,38 @@ function ProductsPage({ user, onLogout, onNavigate }) {
           productId={productId(listingDetailsProduct)}
         />
       )}
-    </div>
+      {sidebarProduct && (
+        <ProductManagementSidebar
+          busy={saving || busyProductId === productId(sidebarProduct)}
+          onClose={() => setSidebarProduct(null)}
+          onCoupons={() => {
+            setSidebarProduct(null)
+            onNavigate('coupons')
+          }}
+          onDelete={() => {
+            setSidebarProduct(null)
+            removeProduct(sidebarProduct)
+          }}
+          onEdit={() => {
+            setSidebarProduct(null)
+            openEditForm(sidebarProduct)
+          }}
+          onManageImages={() => {
+            setSidebarProduct(null)
+            openImages(sidebarProduct)
+          }}
+          onManageSizes={() => {
+            setSidebarProduct(null)
+            setListingDetailsProduct(sidebarProduct)
+          }}
+          onToggle={() => {
+            setSidebarProduct(null)
+            changeStatus(sidebarProduct)
+          }}
+          product={sidebarProduct}
+        />
+      )}
+    </AdminModuleLayout>
   )
 }
 

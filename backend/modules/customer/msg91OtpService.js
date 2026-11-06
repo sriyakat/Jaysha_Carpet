@@ -10,6 +10,16 @@ const getConfig = () => {
         throw error;
     }
 
+    if (
+        authKey.includes("your_actual")
+        || templateId.includes("your_actual")
+        || authKey.trim().length < 20
+    ) {
+        const error = new Error("OTP service credentials are still placeholders. Configure a valid MSG91 auth key and approved OTP template in backend/.env.");
+        error.statusCode = 503;
+        throw error;
+    }
+
     return { authKey, templateId };
 };
 
@@ -31,8 +41,15 @@ const getMobileForProvider = (mobileNumber) => {
 const parseProviderResponse = async (response, failureStatus = 502) => {
     const payload = await response.json().catch(() => null);
     if (!response.ok || !payload || String(payload.type).toLowerCase() !== "success") {
-        const error = new Error("MSG91 could not complete the OTP request.");
+        const providerMessage = payload?.message || payload?.error || payload?.type;
+        const error = new Error(
+            providerMessage
+                ? `MSG91 OTP request failed: ${providerMessage}`
+                : "MSG91 could not complete the OTP request."
+        );
         error.statusCode = response.status === 429 ? 429 : failureStatus;
+        error.providerStatus = response.status;
+        error.providerPayload = payload;
         throw error;
     }
 

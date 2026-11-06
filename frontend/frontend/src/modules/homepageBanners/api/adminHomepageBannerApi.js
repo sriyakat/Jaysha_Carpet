@@ -10,11 +10,17 @@ export async function getHomepageBanners(filters = {}) {
 }
 
 export function createHomepageBanner(data) {
-  return adminRequest('/homepage-banners', { method: 'POST', body: JSON.stringify(data) })
+  return adminRequest('/homepage-banners', {
+    method: 'POST',
+    body: data instanceof FormData ? data : JSON.stringify(data),
+  })
 }
 
 export function updateHomepageBanner(id, data) {
-  return adminRequest(`/homepage-banners/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(data) })
+  return adminRequest(`/homepage-banners/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    body: data instanceof FormData ? data : JSON.stringify(data),
+  })
 }
 
 export function setHomepageBannerActive(id, active) {

@@ -1,6 +1,9 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('node:path');
+const fs = require('node:fs');
+
+
 const categoryRoutes = require('../backend/modules/category/categoryRoutes.js');
 const authRoutes = require('../backend/modules/auth/authRoutes.js');
 const productRoutes = require("../backend/modules/product/productRoutes.js");
@@ -21,23 +24,24 @@ const returnRequestRoutes = require("./modules/returnRequests/returnRequestsRout
 const homepageBannerRoutes = require("./modules/homepageBanners/homepageBannersRoutes.js");
 const salesReportRoutes = require("./modules/salesReports/salesReportsRoutes.js");
 const couponRoutes = require("./modules/coupons/couponsRoutes.js");
+const contentImageRoutes = require("./modules/contentImages/contentImagesRoutes.js");
+const homepageShowcaseRoutes = require("./modules/homepageShowcase/homepageShowcaseRoutes.js");
+const homepageInspirationRoutes = require("./modules/homepageShowcase/homepageInspirationRoutes.js");
+const homepageOfferRoutes = require("./modules/homepageShowcase/homepageOfferRoutes.js");
+const homepageNewArrivalsRoutes = require("./modules/homepageNewArrivals/homepageNewArrivalsRoutes.js");
+const customOrderRoutes = require("./modules/customOrders/customOrdersRoutes.js");
+const blogPostRoutes = require("./modules/blogPosts/blogPostsRoutes.js");
 
 
 const app = express();
 
 app.use(cors({
-    origin: 'http://localhost:5173'
+    origin: true,
+    credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-app.get('/', (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: 'Welcome to Jaysha Carpet API'
-    });
-});
 
 app.get('/api/health', (req, res) => {
     res.status(200).json({
@@ -45,6 +49,7 @@ app.get('/api/health', (req, res) => {
         message: 'Jaysha Carpet Backend is running'
     });
 });
+
 
 app.use('/api/categories', categoryRoutes);
 app.use('/api/auth', authRoutes);
@@ -66,6 +71,41 @@ app.use("/api/return-requests", returnRequestRoutes);
 app.use("/api/homepage-banners", homepageBannerRoutes);
 app.use("/api/sales-reports", salesReportRoutes);
 app.use("/api/coupons", couponRoutes);
+app.use("/api/content-images", contentImageRoutes);
+app.use("/api/homepage-showcase", homepageShowcaseRoutes);
+app.use("/api/homepage-inspiration", homepageInspirationRoutes);
+app.use("/api/homepage-offer", homepageOfferRoutes);
+app.use("/api/homepage-new-arrivals", homepageNewArrivalsRoutes);
+app.use("/api/custom-orders", customOrderRoutes);
+app.use("/api/blog-posts", blogPostRoutes);
+
+
+const frontendDistPath = path.join(__dirname, '..', 'frontend', 'frontend', 'dist');
+const frontendIndexHtml = fs.readFileSync(path.join(frontendDistPath, 'index.html'), 'utf8');
+app.get('/', (req, res) => {
+    res.type('html').send(frontendIndexHtml);
+});
+app.get([
+    '/shop',
+    '/cart',
+    '/checkout',
+    '/customer/login',
+    '/customer/register',
+    '/customer/forgot-password',
+    '/account',
+    '/products',
+    '/admin/products',
+    '/setup-admin'
+], (req, res) => {
+    res.type('html').send(frontendIndexHtml);
+});
+app.use(express.static(frontendDistPath));
+app.use((req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {
+        return next();
+    }
+    res.type('html').send(frontendIndexHtml);
+});
 
 
 module.exports = app;

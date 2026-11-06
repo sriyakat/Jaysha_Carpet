@@ -99,8 +99,8 @@ function ProductImagesModal({ product, productId, onClose }) {
     previewUrlRef.current = file ? URL.createObjectURL(file) : ''
     setLocalPreview(previewUrlRef.current)
 
-    if (file && file.size > 5 * 1024 * 1024) {
-      setFormError('Image size 5 MB ya usse kam honi chahiye.')
+    if (file && file.size > 15 * 1024 * 1024) {
+      setFormError('Image size 15 MB ya usse kam honi chahiye.')
     } else if (file && !['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
       setFormError('Sirf JPEG, PNG, WebP ya GIF image select karein.')
     } else if (file && images.length >= 8) {
@@ -114,8 +114,8 @@ function ProductImagesModal({ product, productId, onClose }) {
       setFormError('Apne computer se image select karein.')
       return
     }
-    if (selectedFile.size > 5 * 1024 * 1024) {
-      setFormError('Image size 5 MB ya usse kam honi chahiye.')
+    if (selectedFile.size > 15 * 1024 * 1024) {
+      setFormError('Image size 15 MB ya usse kam honi chahiye.')
       return
     }
     if (images.length >= 8) {
@@ -234,7 +234,7 @@ function ProductImagesModal({ product, productId, onClose }) {
                   required
                   type="file"
                 />
-                <span className="form-hint">JPEG, PNG, WebP ya GIF · Maximum file size 5 MB</span>
+                <span className="form-hint">JPEG, PNG, WebP ya GIF · Maximum file size 15 MB</span>
               </div>
               <div className="form-field full">
                 {localPreview && (

@@ -1,13 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../category/components/Icon.jsx'
 import ShopFooter from '../components/ShopFooter.jsx'
+import ShopProductGallery from '../components/ShopProductGallery.jsx'
 import {
   getProductImageUrl,
   getProductImages,
 } from '../../product/api/productApi.js'
 import { applyCustomerCoupon, getActiveCoupons, validateCustomerCoupon } from '../../coupon/api/adminCouponApi.js'
 import { getPublicProductReviews } from '../../review/api/customerReviewApi.js'
+import { getBlogPosts } from '../../blog/api/blogApi.js'
 import { getActiveHomepageBanners } from '../../homepageBanners/api/adminHomepageBannerApi.js'
+import { getHomepageShowcaseItems } from '../../homepageShowcase/api/homepageShowcaseApi.js'
+import { getHomepageNewArrivalProductIds } from '../../homepageNewArrivals/api/homepageNewArrivalsApi.js'
+import { createCustomOrderRequest } from '../../customOrder/api/customOrderApi.js'
+import { getPublicWebsiteSettings } from '../../websiteSettings/api/publicWebsiteSettingsApi.js'
 import { getPublicProductVideo } from '../../productVideos/api/publicProductVideoApi.js'
 import './ShopPage.css'
 import {
@@ -26,6 +32,8 @@ import {
   clearSavedCart,
   createCustomerCart,
   getCustomerCart,
+  getPublicProductVariants,
+  getShopCategories,
   getShopProducts,
   readSavedCart,
   removeCustomerCartItem,
@@ -68,6 +76,15 @@ function getDiscountPercent(product) {
     : 0
 }
 
+function variantId(variant) {
+  return value(variant, 'productVariantId', 'ProductVariantId')
+}
+
+function isVariantActive(variant) {
+  const active = value(variant, 'isActive', 'IsActive', true)
+  return active === true || active === 1 || active === '1' || active === 'true'
+}
+
 function money(amount) {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
@@ -93,6 +110,10 @@ function safeBannerUrl(candidate) {
 function getHeroImageUrl(image) {
   if (image?.startsWith('/images/hero/')) return image
   return getProductImageUrl(image)
+}
+
+function isVideoMedia(mediaUrl) {
+  return /\.(mp4|webm|ogg)(?:$|[?#])/i.test(String(mediaUrl || ''))
 }
 
 function readCustomerSession() {
@@ -148,80 +169,22 @@ function loadRazorpayCheckout() {
   })
 }
 
-const SUPPLIED_HERO_SLIDES = [
-  {
-    image: '/images/hero/heritage-rug-showroom.png',
-    imageAlt: 'Colourful traditional rugs displayed in a carpet showroom',
-    eyebrow: 'SPECIAL OFFER · HERITAGE COLLECTION',
-    title: 'Bring home timeless',
-    accent: 'Persian style.',
-    description: 'Explore special prices on selected rugs and find a statement piece for your home.',
-    offerMessage: 'Special prices on selected rugs',
-    buttonText: 'Explore offers',
-  },
-  {
-    image: '/images/hero/neutral-sculpted-rug.png',
-    imageAlt: 'Soft neutral sculpted rug in a contemporary living room',
-    eyebrow: 'SPECIAL OFFER · SOFT NEUTRALS',
-    title: 'A softer kind',
-    accent: 'of statement.',
-    description: 'Find calm, sculptural styles for your room, with special prices on selected designs.',
-    offerMessage: 'Special prices on selected rugs',
-    buttonText: 'Explore offers',
-  },
-  {
-    image: '/images/hero/round-classic-rug.png',
-    imageAlt: 'Round classic floral rug styled in a cosy reading corner',
-    eyebrow: 'SPECIAL OFFER · ROUND RUGS',
-    title: 'Make room for',
-    accent: 'classic charm.',
-    description: 'Discover round rugs and traditional motifs, with offers on selected styles.',
-    offerMessage: 'Special prices on selected rugs',
-    buttonText: 'Explore offers',
-  },
-  {
-    image: '/images/hero/medallion-rug-room.png',
-    imageAlt: 'Ornate medallion rug bringing warmth to a bright living room',
-    eyebrow: 'SPECIAL OFFER · TIMELESS CRAFT',
-    title: 'A little heritage',
-    accent: 'underfoot.',
-    description: 'Explore detailed medallion designs and special prices on selected rugs.',
-    offerMessage: 'Special prices on selected rugs',
-    buttonText: 'Explore offers',
-  },
-  {
-    image: '/images/hero/terracotta-modern-rug.png',
-    imageAlt: 'Modern terracotta rug in a contemporary living room',
-    eyebrow: 'SPECIAL OFFER · MODERN LAYERS',
-    title: 'Ground your space',
-    accent: 'in warm colour.',
-    description: 'Bring a rich, modern feel home with special prices on selected designs.',
-    offerMessage: 'Special prices on selected rugs',
-    buttonText: 'Explore offers',
-  },
-  {
-    image: '/images/hero/sculptural-color-rug.png',
-    imageAlt: 'Sculptural multicolour rug in an elegant interior',
-    eyebrow: 'SPECIAL OFFER · COLOURFUL FORMS',
-    title: 'Make a bold',
-    accent: 'first impression.',
-    description: 'Explore expressive shapes and colours, with offers on selected rugs.',
-    offerMessage: 'Special prices on selected rugs',
-    buttonText: 'Explore offers',
-  },
-]
-
 const CATEGORY_ARTWORK = [
-  'gray-floral-living-room.png',
-  'ornate-teal-medallion.png',
-  'geometric-runner.png',
-  'flower-shaggy-round.png',
-  'pastel-scallop-floral.png',
-  'jute-geometric-room.png',
-  'bird-and-botanical.png',
-  'black-contour-organic.png',
-  'classic-neutral-fringe.png',
-  'ornate-navy-tile.png',
+  'modern-neutral.png',
+  'ivory-gold-medallion.png',
+  'gold-geometric.png',
+  'round-medallion.png',
+  'gray-trellis.png',
+  'neutral-interior.png',
+  'pet-friendly-green.png',
+  'black-irregular.png',
+  'neutral-floral.png',
+  'blue-floral.png',
+  'red-persian.png',
+  'terracotta-shag.png',
+  'organic-black-ivory.png',
+  'monochrome-pattern.png',
+  'warm-neutral.png',
 ]
 
 const CATEGORY_ORDER = [
@@ -236,23 +199,99 @@ const CATEGORY_ORDER = [
   'Outdoor Rugs',
 ]
 
-function categoryArtwork(category, index) {
-  const name = category.toLowerCase()
-  if (name.includes('runner')) return CATEGORY_ARTWORK[2]
-  if (name.includes('round')) return CATEGORY_ARTWORK[3]
-  if (name.includes('shaggy') || name.includes('plush')) return CATEGORY_ARTWORK[4]
-  if (name.includes('jute') || name.includes('natural')) return CATEGORY_ARTWORK[5]
-  if (name.includes('kid')) return CATEGORY_ARTWORK[6]
-  if (name.includes('outdoor')) return CATEGORY_ARTWORK[7]
-  if (name.includes('traditional') || name.includes('persian')) return CATEGORY_ARTWORK[1]
-  if (name.includes('premium')) return CATEGORY_ARTWORK[8]
-  if (name.includes('modern')) return CATEGORY_ARTWORK[0]
+const JOURNAL_ARTICLES = [
+  {
+    id: 'rug-size',
+    category: 'A ROOM-BY-ROOM GUIDE',
+    image: '/images/rug-showcase/neutral-interior.png',
+    imageAlt: 'Calm neutral living room arranged around a pale rug',
+    readTime: '4 min read',
+    title: 'The right rug size can change the whole room',
+    excerpt: 'A simple way to make your living space feel more settled, spacious and connected.',
+    paragraphs: [
+      'A rug is more than a finishing touch: it helps define where a room begins and where it comes together. Before choosing one, measure the seating area and think about how people move through the space.',
+      'In a living room, a generous rug that reaches beneath at least the front legs of the sofa and chairs can make separate pieces feel like one considered arrangement. In a smaller room, leave a visible border of floor around the rug so the space still feels open.',
+      'For bedrooms, let the rug extend beyond the sides and foot of the bed where the layout allows. Always compare the measurements with your furniture and the product’s listed size before ordering.',
+    ],
+  },
+  {
+    id: 'colour-and-pattern',
+    category: 'THE ART OF LAYERING',
+    image: '/images/rug-showcase/red-persian.png',
+    imageAlt: 'Traditional red patterned rug bringing colour to a light living room',
+    readTime: '3 min read',
+    title: 'Let a patterned rug tell your colour story',
+    excerpt: 'Bring character into a room while keeping the rest of your palette beautifully balanced.',
+    paragraphs: [
+      'A patterned rug can be the starting point for a room rather than the last detail. Pick one or two colours from its design and repeat them in smaller accents—perhaps a cushion, a piece of art or a favourite vase.',
+      'If the rug has a strong pattern, let quieter textures and simpler shapes share the space. If your furniture is already full of colour, a softer rug can give the eye somewhere to rest.',
+      'There is no single formula. Lay out a few fabric or paint samples beside the rug in the room’s natural light, and choose the combination that feels like home to you.',
+    ],
+  },
+  {
+    id: 'everyday-care',
+    category: 'CARE FOR YOUR CARPET',
+    image: '/images/rug-showcase/pet-friendly-green.png',
+    imageAlt: 'Green geometric rug in a welcoming home with a relaxed dog',
+    readTime: '4 min read',
+    title: 'A gentler routine for the rug you live on',
+    excerpt: 'A few mindful habits can help keep everyday spaces looking welcoming for longer.',
+    paragraphs: [
+      'Start with the care guidance provided for your particular rug, since fibres and construction can need different treatment. Gentle, regular vacuuming helps manage everyday dust; use a suitable setting and avoid aggressive brushing unless the care label recommends it.',
+      'For a fresh spill, lift away any solids and blot the area with a clean, light-coloured cloth. Work from the outside toward the centre and avoid rubbing, which can spread the mark or disturb the pile.',
+      'A rug pad can help limit movement, and rotating a rug now and then may even out the effects of foot traffic and sunlight. For a stubborn stain or delicate fibre, ask a professional cleaner before trying a new product.',
+    ],
+  },
+]
+
+function fallbackProductArtwork(product, index) {
+  const category = value(product, 'categoryName', 'CategoryName').toLowerCase()
+  const name = value(product, 'productName', 'ProductName').toLowerCase()
+  const style = `${category} ${name}`
+
+  if (style.includes('runner')) return 'gold-geometric.png'
+  if (style.includes('round')) return 'round-medallion.png'
+  if (style.includes('shaggy') || style.includes('plush')) return 'gray-trellis.png'
+  if (style.includes('kid') || style.includes('outdoor')) return 'pet-friendly-green.png'
+  if (style.includes('jute') || style.includes('natural')) return 'modern-neutral.png'
+  if (style.includes('persian') || style.includes('traditional') || style.includes('oriental')) {
+    return ['red-persian.png', 'blue-floral.png', 'ivory-gold-medallion.png'][index % 3]
+  }
+  if (style.includes('modern') || style.includes('abstract')) {
+    return ['organic-black-ivory.png', 'color-block.png', 'terracotta-shag.png'][index % 3]
+  }
+
   return CATEGORY_ARTWORK[index % CATEGORY_ARTWORK.length]
 }
 
 function ShopPage() {
+  const productCarouselRefs = useRef({})
   const [customerSession, setCustomerSession] = useState(readCustomerSession)
+  const [customOrderForm, setCustomOrderForm] = useState(() => {
+    const customer = readCustomerSession()?.customer || {}
+    return {
+      customerName: value(customer, 'fullName', 'FullName', value(customer, 'name', 'Name')),
+      email: value(customer, 'email', 'Email'),
+      mobileNumber: value(customer, 'mobileNumber', 'MobileNumber', value(customer, 'phone', 'Phone')),
+      width: '',
+      length: '',
+      sizeUnit: 'cm',
+      colorName: '',
+      colorHex: '#52674f',
+      notes: '',
+    }
+  })
+  const [customReferenceImage, setCustomReferenceImage] = useState(null)
+  const [submittingCustomRequest, setSubmittingCustomRequest] = useState(false)
+  const [customRequestError, setCustomRequestError] = useState('')
+  const [customRequestSuccess, setCustomRequestSuccess] = useState('')
   const [products, setProducts] = useState([])
+  const [storeCategories, setStoreCategories] = useState([])
+  const [categoryLoadError, setCategoryLoadError] = useState('')
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
+  const [variantsByProduct, setVariantsByProduct] = useState({})
+  const [selectedSizeIds, setSelectedSizeIds] = useState({})
+  const [variantErrors, setVariantErrors] = useState({})
   const [cart, setCart] = useState(() => readSavedCart(getCustomerCartOwner(readCustomerSession())))
   const [cartData, setCartData] = useState({ summary: null, items: [] })
   const [loadingProducts, setLoadingProducts] = useState(true)
@@ -263,8 +302,18 @@ function ShopPage() {
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All rugs')
   const [sortOrder, setSortOrder] = useState('featured')
+  const [wishlistIds, setWishlistIds] = useState([])
+  const [wishlistOnly, setWishlistOnly] = useState(false)
   const [activeHeroSlide, setActiveHeroSlide] = useState(0)
+  const heroVideoRef = useRef(null)
   const [homepageBanners, setHomepageBanners] = useState([])
+  const [homepageShowcase, setHomepageShowcase] = useState([])
+  const [homepageInspiration, setHomepageInspiration] = useState([])
+  const [homepageNewArrivalIds, setHomepageNewArrivalIds] = useState([])
+  const [homepageOffers, setHomepageOffers] = useState([])
+  const [journalArticles, setJournalArticles] = useState(JOURNAL_ARTICLES)
+  const [announcementIndex, setAnnouncementIndex] = useState(0)
+  const [storeContact, setStoreContact] = useState({ ContactEmail: '', ContactPhone: '', ShopName: 'Jaysha Carpet' })
   const [heroPaused, setHeroPaused] = useState(() =>
     window.matchMedia('(prefers-reduced-motion: reduce)').matches,
   )
@@ -297,56 +346,66 @@ function ShopPage() {
     () => sessionStorage.getItem(PENDING_ONLINE_ORDER_KEY) || '',
   )
   const [pendingOnlineOrder, setPendingOnlineOrder] = useState(null)
-
-  const heroSlides = useMemo(() => {
-    const offerProduct = products.find((product) =>
-      getDiscountPercent(product) > 0
-      && imageKey(product)
-      && !value(product, 'shortDescription', 'ShortDescription').startsWith('SAMPLE LISTING'),
-    )
-    const collectionSlides = [
-      ...SUPPLIED_HERO_SLIDES,
-      ...homepageBanners.map((banner) => ({
-        image: value(banner, 'imageUrl', 'ImageUrl'),
-        mobileImage: value(banner, 'mobileImageUrl', 'MobileImageUrl'),
-        imageAlt: value(banner, 'title', 'Title', 'Featured rug collection'),
-        eyebrow: value(banner, 'subtitle', 'Subtitle') || value(banner, 'promotionCode', 'PromotionCode') || 'JAYSHA CARPET · FEATURED',
-        title: value(banner, 'title', 'Title'),
-        accent: '',
-        description: value(banner, 'description', 'Description', ''),
-        buttonText: value(banner, 'buttonText', 'ButtonText', 'Discover the collection'),
-        buttonUrl: safeBannerUrl(value(banner, 'buttonUrl', 'ButtonUrl')),
-      })),
-    ]
-
-    if (!offerProduct) return collectionSlides
-
-    return [...collectionSlides, {
-      image: imageKey(offerProduct),
-      imageAlt: value(offerProduct, 'productName', 'ProductName', 'Featured rug'),
-      eyebrow: `NEW ARRIVAL · SAVE ${getDiscountPercent(offerProduct)}%`,
-      title: value(offerProduct, 'productName', 'ProductName', 'Featured rug'),
-      accent: 'Special offer',
-      description: value(offerProduct, 'shortDescription', 'ShortDescription')
-        || 'A new favourite for your home, now at a special price.',
-      buttonText: 'Shop this rug',
-      product: offerProduct,
-      offerPrice: getPrice(offerProduct),
-      regularPrice: Number(value(offerProduct, 'price', 'Price', 0)),
-      discountPercent: getDiscountPercent(offerProduct),
-    }]
-  }, [homepageBanners, products])
-  const heroSlideCount = heroSlides.length
+  const customReferencePreview = useMemo(
+    () => customReferenceImage ? URL.createObjectURL(customReferenceImage) : '',
+    [customReferenceImage],
+  )
 
   useEffect(() => {
-    if (heroPaused) return undefined
+    const previousScrollRestoration = window.history.scrollRestoration
+    window.history.scrollRestoration = 'manual'
+    window.scrollTo(0, 0)
+
+    return () => {
+      window.history.scrollRestoration = previousScrollRestoration
+    }
+  }, [])
+
+  useEffect(() => () => {
+    if (customReferencePreview) URL.revokeObjectURL(customReferencePreview)
+  }, [customReferencePreview])
+
+  const heroSlides = useMemo(() => {
+    return [...homepageBanners]
+      .sort((left, right) => Number(value(left, 'displayOrder', 'DisplayOrder', 0)) - Number(value(right, 'displayOrder', 'DisplayOrder', 0)))
+      .map((banner) => ({
+      image: value(banner, 'imageUrl', 'ImageUrl'),
+      mobileImage: value(banner, 'mobileImageUrl', 'MobileImageUrl'),
+      isVideo: isVideoMedia(value(banner, 'imageUrl', 'ImageUrl')),
+      imageAlt: value(banner, 'title', 'Title'),
+      eyebrow: value(banner, 'subtitle', 'Subtitle') || value(banner, 'promotionCode', 'PromotionCode'),
+      title: value(banner, 'title', 'Title'),
+      description: value(banner, 'description', 'Description'),
+      buttonText: value(banner, 'buttonText', 'ButtonText'),
+      buttonUrl: safeBannerUrl(value(banner, 'buttonUrl', 'ButtonUrl')),
+      }))
+  }, [homepageBanners])
+  const heroSlideCount = heroSlides.length
+  const currentHeroSlide = heroSlideCount ? activeHeroSlide % heroSlideCount : 0
+  const heroSlide = heroSlides[currentHeroSlide]
+
+  useEffect(() => {
+    if (heroPaused || heroSlideCount <= 1 || heroSlide?.isVideo) return undefined
 
     const timer = window.setInterval(() => {
       setActiveHeroSlide((current) => (current + 1) % heroSlideCount)
     }, 6500)
 
     return () => window.clearInterval(timer)
-  }, [heroPaused, heroSlideCount])
+  }, [heroPaused, heroSlide, heroSlideCount])
+
+  useEffect(() => {
+    const video = heroVideoRef.current
+    if (!video) return
+    if (heroPaused) {
+      video.pause()
+      return
+    }
+
+    video.play().catch((error) => {
+      console.error('Unable to play the homepage banner video:', error)
+    })
+  }, [heroPaused, heroSlide])
 
   useEffect(() => {
     let active = true
@@ -362,13 +421,101 @@ function ShopPage() {
   }, [])
 
   useEffect(() => {
+    if (homepageOffers.length < 2) return undefined
+
+    const timer = window.setInterval(() => {
+      setAnnouncementIndex((current) => (current + 1) % homepageOffers.length)
+    }, 5000)
+
+    return () => window.clearInterval(timer)
+  }, [homepageOffers.length])
+
+  useEffect(() => {
     let active = true
     getActiveHomepageBanners()
       .then((items) => {
         if (active) setHomepageBanners(items)
       })
       .catch((error) => {
-        console.error('Unable to load homepage banners; using built-in collection slides:', error)
+        console.error('Unable to load homepage banners:', error)
+      })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    getHomepageShowcaseItems()
+      .then((items) => {
+        if (active) setHomepageShowcase(items)
+      })
+      .catch((error) => {
+        console.error('Unable to load homepage showcase:', error)
+      })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    getHomepageShowcaseItems({ section: 'inspiration' })
+      .then((items) => {
+        if (active) setHomepageInspiration(items)
+      })
+      .catch((error) => {
+        console.error('Unable to load homepage inspiration:', error)
+      })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    getHomepageShowcaseItems({ section: 'offer' })
+      .then((items) => {
+        if (active) setHomepageOffers(items)
+      })
+      .catch((error) => {
+        console.error('Unable to load homepage offers:', error)
+      })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    getBlogPosts({ pageSize: 20 })
+      .then(({ items: posts }) => {
+        if (active) {
+          setJournalArticles(posts.map((post) => ({
+            ...post,
+            image: post.mediaUrl,
+            paragraphs: String(post.body || '').split(/\n\s*\n/).map((paragraph) => paragraph.trim()).filter(Boolean),
+          })))
+        }
+      })
+      .catch((error) => {
+        console.error('Unable to load blog posts:', error)
+      })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    getHomepageNewArrivalProductIds()
+      .then((productIds) => {
+        if (active) setHomepageNewArrivalIds(productIds)
+      })
+      .catch((error) => {
+        console.error('Unable to load homepage new arrivals:', error)
+      })
+    return () => { active = false }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    getPublicWebsiteSettings()
+      .then((settings) => {
+        if (active) setStoreContact(settings)
+      })
+      .catch((error) => {
+        console.error('Unable to load storefront contact details:', error)
       })
     return () => { active = false }
   }, [])
@@ -435,6 +582,65 @@ function ShopPage() {
   }, [])
 
   useEffect(() => {
+    let active = true
+
+    getShopCategories()
+      .then((items) => {
+        if (active) {
+          setStoreCategories(items)
+          setCategoryLoadError('')
+        }
+      })
+      .catch((error) => {
+        console.error('Unable to load storefront categories:', error)
+        if (active) setCategoryLoadError('Some categories may not be available right now.')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    const productsWithIds = products
+      .map((product) => ({ productId: productId(product) }))
+      .filter(({ productId: id }) => Number.isInteger(Number(id)) && Number(id) > 0)
+
+    Promise.all(productsWithIds.map(async ({ productId: id }) => {
+      const key = String(id)
+      try {
+        const variants = (await getPublicProductVariants(id)).filter(isVariantActive)
+        if (!active) return
+
+        setVariantsByProduct((current) => ({ ...current, [key]: variants }))
+        setVariantErrors((current) => {
+          if (!current[key]) return current
+          const next = { ...current }
+          delete next[key]
+          return next
+        })
+        setSelectedSizeIds((current) => (
+          current[key] || variants.length === 0
+            ? current
+            : {
+              ...current,
+              [key]: String(
+                variantId(variants.find((variant) => Number(value(variant, 'stockQuantity', 'StockQuantity', 0)) > 0))
+                  || variantId(variants[0])
+                  || '',
+              ),
+            }
+        ))
+      } catch (error) {
+        if (active) setVariantErrors((current) => ({ ...current, [key]: error.message }))
+      }
+    }))
+
+    return () => { active = false }
+  }, [products])
+
+  useEffect(() => {
     if (!cart) return undefined
 
     let active = true
@@ -490,6 +696,11 @@ function ShopPage() {
     setCheckoutView(false)
     const nextPath = open ? '/cart' : '/shop'
     if (window.location.pathname !== nextPath) window.history.pushState(null, '', nextPath)
+  }
+
+  function navigateHome() {
+    navigateCart(false)
+    window.scrollTo({ top: 0, left: 0, behavior: 'smooth' })
   }
 
   function openProductDetails(product) {
@@ -647,25 +858,17 @@ function ShopPage() {
   }, [detailsProduct])
 
   const categories = useMemo(
-    () => [...new Set(
-      products.map((product) => value(product, 'categoryName', 'CategoryName')).filter(Boolean),
-    )].sort((first, second) => {
+    () => [...new Set([
+      ...storeCategories.map((category) => value(category, 'categoryName', 'CategoryName')).filter(Boolean),
+      ...products.map((product) => value(product, 'categoryName', 'CategoryName')).filter(Boolean),
+    ])].sort((first, second) => {
       const firstOrder = CATEGORY_ORDER.indexOf(first)
       const secondOrder = CATEGORY_ORDER.indexOf(second)
       return (firstOrder < 0 ? CATEGORY_ORDER.length : firstOrder)
         - (secondOrder < 0 ? CATEGORY_ORDER.length : secondOrder)
         || first.localeCompare(second)
     }),
-    [products],
-  )
-
-  const categoryCards = useMemo(
-    () => categories.map((category, index) => ({
-      name: category,
-      count: products.filter((product) => value(product, 'categoryName', 'CategoryName') === category).length,
-      image: getProductImageUrl(`/uploads/showcase/${categoryArtwork(category, index)}`),
-    })),
-    [categories, products],
+    [products, storeCategories],
   )
 
   const visibleProducts = useMemo(() => {
@@ -679,7 +882,10 @@ function ShopPage() {
         value(product, 'color', 'Color'),
         value(product, 'size', 'Size'),
       ].join(' ').toLowerCase()
-      return searchable.includes(query) && (selectedCategory === 'All rugs' || category === selectedCategory)
+      const id = String(productId(product))
+      return searchable.includes(query)
+        && (selectedCategory === 'All rugs' || category === selectedCategory)
+        && (!wishlistOnly || wishlistIds.includes(id))
     })
     return filteredProducts.sort((first, second) => {
       if (sortOrder === 'price-low') return getPrice(first) - getPrice(second)
@@ -690,17 +896,67 @@ function ShopPage() {
       return (Number(getDiscountPercent(second) > 0) - Number(getDiscountPercent(first) > 0))
         || Number(value(second, 'isFeatured', 'IsFeatured', false)) - Number(value(first, 'isFeatured', 'IsFeatured', false))
     })
-  }, [products, search, selectedCategory, sortOrder])
+  }, [products, search, selectedCategory, sortOrder, wishlistOnly, wishlistIds])
+
+  const homepageOffer = homepageOffers.length
+    ? homepageOffers[announcementIndex % homepageOffers.length]
+    : null
+  const homepageNewArrivals = useMemo(() => {
+    const productsById = new Map(products.map((product) => [String(productId(product)), product]))
+    return homepageNewArrivalIds
+      .map((id) => productsById.get(String(id)))
+      .filter(Boolean)
+  }, [homepageNewArrivalIds, products])
+
+  function toggleWishlist(product) {
+    const id = String(productId(product))
+    setWishlistIds((current) => current.includes(id)
+      ? current.filter((savedId) => savedId !== id)
+      : [...current, id])
+  }
+
+  function selectShopCategory(category) {
+    setSelectedCategory(category)
+    setWishlistOnly(false)
+    setCategoryMenuOpen(false)
+    window.setTimeout(() => {
+      document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })
+    }, 0)
+  }
+
+  const productGroups = useMemo(() => {
+    const groups = categories
+      .map((category) => ({
+        category,
+        products: visibleProducts.filter(
+          (product) => value(product, 'categoryName', 'CategoryName') === category,
+        ),
+      }))
+      .filter((group) => group.products.length > 0)
+    const knownCategories = new Set(categories)
+    const otherProducts = visibleProducts.filter(
+      (product) => !knownCategories.has(value(product, 'categoryName', 'CategoryName')),
+    )
+
+    if (otherProducts.length) {
+      groups.push({ category: 'Jaysha collection', products: otherProducts })
+    }
+
+    return groups
+  }, [categories, visibleProducts])
 
   const itemCount = cartData.items.reduce((total, item) => total + Number(value(item, 'quantity', 'Quantity', 0)), 0)
   const activeProductId = detailsProduct ? String(productId(detailsProduct)) : ''
+  const activeProductVariants = variantsByProduct[activeProductId] || []
+  const activeProductVariant = activeProductVariants.find(
+    (variant) => String(variantId(variant)) === selectedSizeIds[activeProductId],
+  ) || activeProductVariants[0]
+  const activeProductPriceSource = activeProductVariant || detailsProduct
   const activeReviewsResult = productReviewsResult?.productId === activeProductId ? productReviewsResult : null
   const productReviews = activeReviewsResult?.items || []
   const reviewsLoading = Boolean(detailsProduct && !activeReviewsResult)
   const reviewsError = activeReviewsResult?.error || ''
   const activeProductVideo = productVideoResult?.productId === activeProductId ? productVideoResult : null
-  const currentHeroSlide = activeHeroSlide % heroSlides.length
-  const heroSlide = heroSlides[currentHeroSlide]
   const computedTotal = cartData.items.reduce((total, item) => {
     const unitPrice = Number(value(item, 'unitPrice', 'UnitPrice', value(item, 'price', 'Price', 0)))
     return total + unitPrice * Number(value(item, 'quantity', 'Quantity', 0))
@@ -1164,6 +1420,15 @@ function ShopPage() {
     }
   }
 
+  async function buyNowProduct(product) {
+    const productKey = String(productId(product))
+    if ((variantsByProduct[productKey] || []).length > 0) {
+      openProductDetails(product)
+      return
+    }
+    if (await addProduct(product)) beginCheckout()
+  }
+
   async function handleDetailsPurchase(buyNow) {
     if (!await addProduct(detailsProduct)) return
 
@@ -1217,72 +1482,175 @@ function ShopPage() {
     }
   }
 
+  async function submitCustomOrder(event) {
+    event.preventDefault()
+    if (!customerSession?.token) return
+    if (!customReferenceImage) {
+      setCustomRequestError('Apne carpet design ki reference image upload karein.')
+      return
+    }
+
+    setSubmittingCustomRequest(true)
+    setCustomRequestError('')
+    setCustomRequestSuccess('')
+    try {
+      const requestData = new FormData()
+      Object.entries(customOrderForm).forEach(([key, fieldValue]) => {
+        requestData.append(key, String(fieldValue))
+      })
+      requestData.append('referenceImage', customReferenceImage)
+      const payload = await createCustomOrderRequest(customerSession.token, requestData)
+      const requestId = payload?.data?.id
+      if (!requestId) throw new Error('Request submit hui, lekin confirmation ID nahi mili.')
+      setCustomRequestSuccess(`Request ${requestId} submit ho gayi. Jaysha Carpet team aapse final quote ke liye contact karegi.`)
+      setCustomOrderForm((current) => ({ ...current, width: '', length: '', colorName: '', notes: '' }))
+      setCustomReferenceImage(null)
+    } catch (error) {
+      setCustomRequestError(error.message)
+    } finally {
+      setSubmittingCustomRequest(false)
+    }
+  }
+
   return (
     <main className="shop-page">
-      <div className="shop-announcement">
-        <span>HANDWOVEN RUGS · MADE TO FEEL LIKE HOME</span>
-        <span>Thoughtful textures for everyday living</span>
-      </div>
-      <header className="shop-header">
-        <a aria-label="Jaysha Carpet home" className="shop-brand" href="/shop" onClick={(event) => { event.preventDefault(); navigateCart(false) }}>
-          <span className="shop-brand-mark">J</span>
-          <span><strong>Jaysha Carpet</strong><small>HANDWOVEN HOME</small></span>
-        </a>
-        <nav aria-label="Shop navigation" className="shop-nav">
-          <a className={!cartOpen ? 'shop-nav-link active' : 'shop-nav-link'} href="/shop" onClick={(event) => { event.preventDefault(); navigateCart(false) }}>Shop</a>
-          <a className="shop-nav-link" href={customerSession ? '/account' : '/customer/login'}>
-            {customerSession ? 'My account' : 'Sign in'}
+      <div
+        className="shop-site-header"
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) setCategoryMenuOpen(false)
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') setCategoryMenuOpen(false)
+        }}
+        onMouseLeave={() => setCategoryMenuOpen(false)}
+      >
+        <header className="shop-header shop-header-main">
+          <div className="shop-header-contact">
+            {value(storeContact, 'contactPhone', 'ContactPhone') && <a href={`tel:${value(storeContact, 'contactPhone', 'ContactPhone')}`}>{value(storeContact, 'contactPhone', 'ContactPhone')}</a>}
+            {value(storeContact, 'contactEmail', 'ContactEmail') && <a href={`mailto:${value(storeContact, 'contactEmail', 'ContactEmail')}`}>{value(storeContact, 'contactEmail', 'ContactEmail')}</a>}
+          </div>
+          <a aria-label={`${value(storeContact, 'shopName', 'ShopName', 'Jaysha Carpet')} home`} className="shop-brand" href="/shop" onClick={(event) => { event.preventDefault(); navigateHome() }}>
+            <span className="shop-brand-mark">J</span>
+            <span><strong>{value(storeContact, 'shopName', 'ShopName', 'Jaysha Carpet')}</strong><small>HANDWOVEN HOME</small></span>
           </a>
-          <a className="shop-admin-login" href="/admin/login">Admin login</a>
-          <button aria-label={`Open cart, ${itemCount} items`} className="shop-cart-button" onClick={() => navigateCart(true)} type="button">
-            <Icon name="box" size={18} />
-            <span>Cart</span>
-            <strong>{itemCount}</strong>
+          <div className="shop-header-actions">
+            <form className="shop-header-search" onSubmit={(event) => { event.preventDefault(); document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' }) }}>
+              <Icon name="search" size={19} />
+              <input aria-label="Search rugs" onChange={(event) => setSearch(event.target.value)} placeholder="I'm looking for..." type="search" value={search} />
+            </form>
+            <a aria-label={customerSession ? 'My account' : 'Sign in'} className="shop-header-icon-link" href={customerSession ? '/account' : '/customer/login'}>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></svg>
+            </a>
+            <button
+              aria-label={`Show wishlist, ${wishlistIds.length} saved rugs`}
+              aria-pressed={wishlistOnly}
+              className={`shop-header-icon-button${wishlistOnly ? ' selected' : ''}`}
+              onClick={() => {
+                setWishlistOnly((current) => !current)
+                setSelectedCategory('All rugs')
+                document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              type="button"
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20.8 8.7c0 5.2-8.8 11-8.8 11s-8.8-5.8-8.8-11A4.7 4.7 0 0 1 12 6.3a4.7 4.7 0 0 1 8.8 2.4Z" /></svg>
+              <span>{wishlistIds.length}</span>
+            </button>
+            <button aria-label={`Open cart, ${itemCount} items`} className="shop-header-icon-button" onClick={() => navigateCart(true)} type="button">
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 8h14l1 13H4L5 8Z" /><path d="M9 9V6a3 3 0 0 1 6 0v3" /></svg>
+              <span>{itemCount}</span>
+            </button>
+          </div>
+        </header>
+        <nav aria-label="Main navigation" className="shop-primary-nav">
+          <a href="/shop" onClick={(event) => { event.preventDefault(); navigateHome() }} onMouseEnter={() => setCategoryMenuOpen(false)}>Home</a>
+          <button
+            aria-expanded={categoryMenuOpen}
+            aria-controls="shop-category-dropdown"
+            aria-haspopup="true"
+            className={`shop-primary-nav-shop${categoryMenuOpen ? ' open' : ''}`}
+            onClick={() => setCategoryMenuOpen(true)}
+            onFocus={() => setCategoryMenuOpen(true)}
+            onMouseEnter={() => setCategoryMenuOpen(true)}
+            type="button"
+          >
+            Shop <span aria-hidden="true">⌄</span>
           </button>
+          <a href="#shop-categories-title" onMouseEnter={() => setCategoryMenuOpen(false)}>Collections</a>
+          <a href="#shop-new-arrivals" onMouseEnter={() => setCategoryMenuOpen(false)}>New Arrivals</a>
+          <a href="#shop-footer" onMouseEnter={() => setCategoryMenuOpen(false)}>Contact Us</a>
+          <a href="#shop-bespoke-title" onMouseEnter={() => setCategoryMenuOpen(false)}>Customization</a>
+          <a href="#shop-reviews" onMouseEnter={() => setCategoryMenuOpen(false)}>Customer Reviews</a>
+          <a href="#shop-journal-title" onMouseEnter={() => setCategoryMenuOpen(false)}>Blog</a>
+          <a className="shop-primary-signup-link" href="/customer/register" onMouseEnter={() => setCategoryMenuOpen(false)}>Create account</a>
+          <a className="shop-primary-admin-link" href="/admin/login" onMouseEnter={() => setCategoryMenuOpen(false)}>Admin</a>
         </nav>
-      </header>
+        {categoryMenuOpen && <div aria-label="Shop by category" className="shop-category-dropdown" id="shop-category-dropdown">
+          <div className="shop-category-dropdown-heading">
+            <div className="shop-category-dropdown-intro">
+              <span>THE JAYSHA COLLECTION</span>
+              <strong>Find the rug that feels like home.</strong>
+              <small>Thoughtfully chosen textures, colours and patterns for every room.</small>
+            </div>
+            <button aria-label="Close categories" onClick={() => setCategoryMenuOpen(false)} type="button">×</button>
+          </div>
+          <div className="shop-category-dropdown-list">
+            <button onClick={() => selectShopCategory('All rugs')} style={{ '--menu-index': 0 }} type="button"><span>All rugs</span><span aria-hidden="true">→</span></button>
+            {categories.map((category, index) => (
+              <button key={category} onClick={() => selectShopCategory(category)} style={{ '--menu-index': index + 1 }} type="button">
+                <span>{category}</span><span aria-hidden="true">→</span>
+              </button>
+            ))}
+          </div>
+          {categoryLoadError && <p className="shop-category-dropdown-note">{categoryLoadError}</p>}
+        </div>}
+      </div>
 
-      <section aria-label="Featured rug collections" aria-roledescription="carousel" className={`shop-hero shop-hero-editorial has-hero-image${heroSlide.product || heroSlide.offerMessage ? ' has-hero-offer' : ''}`}>
-        <picture className="shop-hero-picture">
-          {heroSlide.mobileImage && <source media="(max-width: 640px)" srcSet={getHeroImageUrl(heroSlide.mobileImage)} />}
-          <img
-            alt={heroSlide.imageAlt || ''}
-            className="shop-hero-photo"
-            fetchPriority="high"
+      {heroSlide && <section aria-label="Homepage banners" aria-roledescription={heroSlides.length > 1 ? 'carousel' : undefined} className={`shop-hero shop-hero-editorial has-hero-image${heroSlide.isVideo ? ' has-hero-video' : ''}`}>
+        {heroSlide.isVideo
+          ? <video
+            aria-hidden="true"
+            autoPlay={!heroPaused}
+            className="shop-hero-photo shop-hero-video"
             key={heroSlide.image}
+            muted
+            onEnded={() => {
+              if (!heroPaused && heroSlideCount > 1) {
+                setActiveHeroSlide((current) => (current + 1) % heroSlideCount)
+              }
+            }}
+            onError={() => {
+              console.error('Unable to load the homepage banner video.')
+              if (heroSlideCount > 1) setActiveHeroSlide((current) => (current + 1) % heroSlideCount)
+            }}
+            playsInline
+            preload="metadata"
+            ref={heroVideoRef}
             src={getHeroImageUrl(heroSlide.image)}
           />
-        </picture>
+          : <picture className="shop-hero-picture">
+            {heroSlide.mobileImage && <source media="(max-width: 640px)" srcSet={getHeroImageUrl(heroSlide.mobileImage)} />}
+            <img
+              alt={heroSlide.imageAlt || ''}
+              className="shop-hero-photo"
+              fetchPriority="high"
+              key={heroSlide.image}
+              src={getHeroImageUrl(heroSlide.image)}
+            />
+          </picture>}
         <div aria-hidden="true" className="shop-hero-shade" />
-        <div className="shop-hero-copy">
-          <span className="shop-eyebrow">{heroSlide.eyebrow}</span>
-          <h1>{heroSlide.title}{heroSlide.accent && <><br /><em>{heroSlide.accent}</em></>}</h1>
-          <p>{heroSlide.description}</p>
-          {heroSlide.product && <div className="shop-hero-offer-pricing">
-            <span>Now <strong>{money(heroSlide.offerPrice)}</strong></span>
-            <del>{money(heroSlide.regularPrice)}</del>
-            <b>Save {heroSlide.discountPercent}%</b>
-          </div>}
-          {heroSlide.offerMessage && !heroSlide.product && <div className="shop-hero-offer-pricing">
-            <span><strong>Special offer</strong></span>
-            <b>Selected rugs</b>
-          </div>}
-          {heroSlide.product
-            ? <button className="shop-hero-button" onClick={() => openProductDetails(heroSlide.product)} type="button">
-              {heroSlide.buttonText} <span aria-hidden="true">→</span>
-            </button>
-            : heroSlide.offerMessage
-              ? <button className="shop-hero-button" onClick={() => document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })} type="button">
-                {heroSlide.buttonText} <span aria-hidden="true">→</span>
-              </button>
-            : heroSlide.buttonUrl
-            ? <a className="shop-hero-button" href={heroSlide.buttonUrl}>{heroSlide.buttonText} <span aria-hidden="true">→</span></a>
-            : <button className="shop-hero-button" onClick={() => document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })} type="button">
-              {heroSlide.buttonText || 'Discover the collection'} <span aria-hidden="true">↓</span>
-            </button>}
+        <div className={`shop-hero-copy${heroSlide.isVideo ? ' shop-hero-video-copy' : ''}`}>
+          {heroSlide.eyebrow && <span className="shop-eyebrow">{heroSlide.eyebrow}</span>}
+          <h1>{heroSlide.title}</h1>
+          {heroSlide.description && <p className={heroSlide.isVideo ? 'shop-hero-video-quote' : undefined}>{heroSlide.isVideo ? `“${heroSlide.description}”` : heroSlide.description}</p>}
+          <div className="shop-hero-actions">
+            {heroSlide.buttonText && (heroSlide.buttonUrl
+              ? <a className="shop-hero-button" href={heroSlide.buttonUrl}>{heroSlide.buttonText}<span aria-hidden="true">→</span></a>
+              : <button className="shop-hero-button" onClick={() => document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })} type="button">
+                {heroSlide.buttonText}<span aria-hidden="true">→</span>
+              </button>)}
+          </div>
         </div>
-        <span className="shop-hero-caption">{heroSlide.eyebrow}</span>
-        <div className="shop-hero-controls">
+        {heroSlides.length > 1 && <div className="shop-hero-controls">
           <button
             aria-label="Previous featured collection"
             className="shop-hero-arrow"
@@ -1313,43 +1681,59 @@ function ShopPage() {
             onClick={() => setHeroPaused((paused) => !paused)}
             type="button"
           >{heroPaused ? 'Play' : 'Pause'}</button>
-        </div>
-      </section>
+        </div>}
+      </section>}
 
-      <section aria-labelledby="shop-categories-title" className="shop-category-showcase">
-        <div className="shop-category-heading">
-          <span className="shop-eyebrow">A RUG FOR EVERY ROOM</span>
-          <h2 id="shop-categories-title">Find your kind of comfort</h2>
-          <p>Explore thoughtfully chosen textures, shapes, and styles for your home.</p>
-        </div>
-        <div className="shop-category-grid">
-          {categoryCards.map((category, index) => (
-            <button
-              className="shop-category-card"
-              key={category.name}
-              onClick={() => {
-                setSelectedCategory(category.name)
-                document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })
-              }}
-              type="button"
-            >
-              <img alt="" loading={index < 4 ? 'eager' : 'lazy'} src={category.image} />
-              <span className="shop-category-shade" />
-              <span className="shop-category-card-copy">
-                <strong>{category.name}</strong>
-                <small>{category.count} {category.count === 1 ? 'design' : 'designs'} <span aria-hidden="true">→</span></small>
-              </span>
-            </button>
+      <section aria-label="Jaysha Carpet highlights" className="shop-marquee">
+        <div aria-hidden="true" className="shop-marquee-track">
+          {[0, 1].map((copy) => (
+            <span className="shop-marquee-group" key={copy}>
+              <span>100% New Zealand wool</span><i>✳</i><span>Hand-tufted by artisans</span><i>✳</i><span>Made with intention</span><i>✳</i><span>Designed for modern living</span><i>✳</i>
+            </span>
           ))}
         </div>
       </section>
 
+      {homepageShowcase.length > 0 && <section aria-labelledby="shop-categories-title" className="shop-category-showcase">
+        <div className="shop-category-heading">
+          <span className="shop-eyebrow">MADE FOR YOUR EVERYDAY</span>
+          <h2 id="shop-categories-title">Find your kind of comfort</h2>
+          <p>Explore thoughtfully chosen textures, shapes, and styles for your home.</p>
+        </div>
+        <div className="shop-category-grid">
+          {homepageShowcase.map((mood, index) => {
+            return (
+            <button
+              className={`shop-category-card shop-bento-card${homepageShowcase.length === 4 ? ` mood-${index}` : ''}`}
+              key={mood.id}
+              onClick={() => {
+                setSearch('')
+                setSelectedCategory('All rugs')
+                document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })
+              }}
+              type="button"
+            >
+              {mood.mediaType === 'video'
+                ? <video aria-label={mood.title} autoPlay loop muted playsInline preload="metadata" src={getProductImageUrl(mood.mediaUrl)} />
+                : <img alt="" loading={index < 4 ? 'eager' : 'lazy'} src={getProductImageUrl(mood.mediaUrl)} />}
+              <span className="shop-category-shade" />
+              <span className="shop-category-card-copy">
+                <small>{mood.eyebrow}</small>
+                <strong>{mood.title}</strong>
+                <small>Explore the edit <span aria-hidden="true">→</span></small>
+              </span>
+            </button>
+            )
+          })}
+        </div>
+      </section>}
+
       <section className="shop-collection" id="shop-products">
         <div className="shop-section-heading">
           <div>
-            <span className="shop-eyebrow">NEW COLLECTION</span>
-            <h2>New rugs, special offers</h2>
-            <p>Explore the latest rugs and see offer prices on selected designs.</p>
+            <span className="shop-eyebrow">THE JAYSHA EDIT</span>
+            <h2>Best sellers, made personal</h2>
+            <p>Explore customer favourites and the latest designs, thoughtfully made for your space.</p>
           </div>
           <div className="shop-collection-tools">
             <label className="shop-search">
@@ -1369,6 +1753,12 @@ function ShopPage() {
         </div>
 
         <nav aria-label="Filter by category" className="shop-category-filters">
+          <button
+            aria-pressed={wishlistOnly}
+            className={wishlistOnly ? 'shop-category-chip selected' : 'shop-category-chip'}
+            onClick={() => setWishlistOnly((current) => !current)}
+            type="button"
+          >♡ Saved rugs ({wishlistIds.length})</button>
           <button
             aria-pressed={selectedCategory === 'All rugs'}
             className={selectedCategory === 'All rugs' ? 'shop-category-chip selected' : 'shop-category-chip'}
@@ -1406,60 +1796,440 @@ function ShopPage() {
             <p>{search ? 'Search ko badal kar dobara try karein.' : 'Products available hote hi yahan dikhai denge.'}</p>
           </div>
         ) : (
-          <div className="shop-product-grid">
-            {visibleProducts.map((product, index) => {
-              const id = productId(product)
-              const name = value(product, 'productName', 'ProductName', 'Handwoven rug')
-              const category = value(product, 'categoryName', 'CategoryName', 'Jaysha collection')
-              const price = getPrice(product)
-              const oldPrice = Number(value(product, 'price', 'Price', 0))
-              const offerPercent = getDiscountPercent(product)
-              const picture = getProductImageUrl(imageKey(product))
-              const isSampleProduct = value(product, 'shortDescription', 'ShortDescription').startsWith('SAMPLE LISTING')
-
-              return (
-                <article className="shop-product-card" key={id ?? index}>
-                  <div className={`shop-product-image textile-tone-${index % 4}`}>
-                    {picture
-                      ? <img alt={name} loading="lazy" src={picture} />
-                      : <div aria-hidden="true" className="shop-textile-placeholder"><span /><i /><b /></div>}
-                    {Boolean(value(product, 'isFeatured', 'IsFeatured', false)) && <span className="shop-featured-badge">Bestseller</span>}
-                    {offerPercent > 0 && <span className="shop-offer-badge">{offerPercent}% OFF</span>}
-                    {isSampleProduct && <span className="shop-sample-badge">SAMPLE · EXAMPLE PRICE</span>}
-                    <span className="shop-product-number">{String(index + 1).padStart(2, '0')}</span>
-                    <button className="shop-quick-view" onClick={() => openProductDetails(product)} type="button">Quick view</button>
+          <div className="shop-product-collections">
+            {productGroups.map((group) => (
+              <section
+                aria-label={`${group.category} collection`}
+                className="shop-product-collection"
+                key={group.category}
+              >
+                <header className="shop-product-collection-heading">
+                  <span className="shop-eyebrow">JAYSHA CARPET COLLECTION</span>
+                  <h3>{group.category}</h3>
+                  <p>{group.products.length} {group.products.length === 1 ? 'design' : 'designs'} to explore</p>
+                </header>
+                <div className={`shop-product-carousel${group.products.length > 2 ? ' has-mobile-overflow' : ''}${group.products.length > 4 ? ' has-desktop-overflow' : ''}`}>
+                  <div aria-label={`${group.category} product carousel controls`} className="shop-product-carousel-controls">
+                    <button
+                      aria-label={`Previous ${group.category} products`}
+                      onClick={() => productCarouselRefs.current[group.category]?.scrollBy({ left: -productCarouselRefs.current[group.category].clientWidth, behavior: 'smooth' })}
+                      type="button"
+                    >←</button>
+                    <button
+                      aria-label={`Next ${group.category} products`}
+                      onClick={() => productCarouselRefs.current[group.category]?.scrollBy({ left: productCarouselRefs.current[group.category].clientWidth, behavior: 'smooth' })}
+                      type="button"
+                    >→</button>
                   </div>
-                  <div className="shop-product-info">
-                    <span className="shop-product-category">{category}</span>
-                    <h3>{name}</h3>
-                    <div className="shop-product-meta">
-                      <span>{value(product, 'material', 'Material', 'Handwoven')}</span>
-                      {value(product, 'size', 'Size') && <span>{value(product, 'size', 'Size')}</span>}
-                    </div>
-                    <div className="shop-product-buy">
-                      <span className="shop-price">{money(price)}{oldPrice > price && <del>{money(oldPrice)}</del>}</span>
+                  <div
+                    aria-label={`${group.category} products`}
+                    className="shop-product-grid"
+                    ref={(element) => { productCarouselRefs.current[group.category] = element }}
+                    tabIndex={0}
+                  >
+                    {group.products.map((product, index) => {
+                    const id = productId(product)
+                    const productKey = String(id)
+                    const name = value(product, 'productName', 'ProductName', 'Handwoven rug')
+                    const category = value(product, 'categoryName', 'CategoryName', 'Jaysha collection')
+                    const productVariants = variantsByProduct[productKey] || []
+                    const selectedVariant = productVariants.find(
+                      (variant) => String(variantId(variant)) === selectedSizeIds[productKey],
+                    ) || productVariants[0]
+                    const priceSource = selectedVariant || product
+                    const price = getPrice(priceSource)
+                    const oldPrice = Number(value(priceSource, 'price', 'Price', 0))
+                    const offerPercent = getDiscountPercent(priceSource)
+                    const isSampleProduct = value(product, 'shortDescription', 'ShortDescription').startsWith('SAMPLE LISTING')
+
+                    return (
+                      <article className="shop-product-card" key={id ?? `${group.category}-${index}`}>
+                        <div className="shop-product-media">
+                        <ShopProductGallery
+                          primaryImage={imageKey(product) || `/images/rug-showcase/${fallbackProductArtwork(product, index)}`}
+                          productId={id}
+                          productName={name}
+                          tone={index % 4}
+                        />
+                          {offerPercent > 0 && (
+                            <span className="shop-product-offer-badge">{offerPercent}% OFF</span>
+                          )}
+                          <button
+                            aria-label={`${wishlistIds.includes(productKey) ? 'Remove' : 'Add'} ${name} ${wishlistIds.includes(productKey) ? 'from' : 'to'} wishlist`}
+                            aria-pressed={wishlistIds.includes(productKey)}
+                            className={`shop-product-wishlist${wishlistIds.includes(productKey) ? ' selected' : ''}`}
+                            onClick={() => toggleWishlist(product)}
+                            type="button"
+                          >{wishlistIds.includes(productKey) ? '♥' : '♡'}</button>
+                        </div>
+                        <div className="shop-product-info">
+                          <div className="shop-product-tags">
+                            {Boolean(value(product, 'isFeatured', 'IsFeatured', false)) && <span className="shop-product-tag featured">Bestseller</span>}
+                            {isSampleProduct && <span className="shop-product-tag sample">SAMPLE · EXAMPLE PRICE</span>}
+                          </div>
+                          <span className="shop-product-category">{category}</span>
+                          <h3>{name}</h3>
+                          <div className="shop-product-meta">
+                            <span>{value(product, 'material', 'Material', 'Handwoven')}</span>
+                            {!productVariants.length && value(product, 'size', 'Size') && <span>{value(product, 'size', 'Size')}</span>}
+                          </div>
+                          {productVariants.length > 0 && (
+                            <label className="shop-size-select">
+                              <span>Size</span>
+                              <select
+                                aria-label={`Choose size for ${name}`}
+                                onChange={(event) => setSelectedSizeIds((current) => ({
+                                  ...current,
+                                  [productKey]: event.target.value,
+                                }))}
+                                value={String(variantId(selectedVariant) || '')}
+                              >
+                                {productVariants.map((variant, variantIndex) => (
+                                  <option
+                                    disabled={Number(value(variant, 'stockQuantity', 'StockQuantity', 0)) <= 0}
+                                    key={variantId(variant) || `${productKey}-${variantIndex}`}
+                                    value={String(variantId(variant) || '')}
+                                  >
+                                    {value(variant, 'sizeLabel', 'SizeLabel', 'Size')}
+                                    {Number(value(variant, 'stockQuantity', 'StockQuantity', 0)) <= 0 ? ' · Out of stock' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          )}
+                          {productVariants.length === 0 && <span aria-hidden="true" className="shop-size-select-placeholder" />}
+                          {variantErrors[productKey] && (
+                            <p className="shop-size-error" role="status">Size options load nahi ho sake: {variantErrors[productKey]}</p>
+                          )}
+                          <div className="shop-product-buy">
+                            <span className="shop-price">{money(price)}{oldPrice > price && <del>{money(oldPrice)}</del>}</span>
+                            <div className="shop-product-card-actions">
+                              <button
+                                aria-label={productVariants.length ? `Choose size and buy ${name}` : `Buy ${name} now`}
+                                className="shop-buy-now-button"
+                                disabled={addingProduct !== null
+                                  || (selectedVariant && Number(value(selectedVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)}
+                                onClick={() => buyNowProduct(product)}
+                                type="button"
+                              >
+                                Buy now
+                              </button>
+                              <button
+                                aria-label={productVariants.length ? `Choose size and add ${name} to cart` : `Add ${name} to cart`}
+                                className="shop-add-button"
+                                disabled={addingProduct !== null
+                                  || (selectedVariant && Number(value(selectedVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)}
+                                onClick={() => productVariants.length ? openProductDetails(product) : addProduct(product)}
+                                type="button"
+                              >
+                                <img className="shop-cart-button-icon" src="/images/cart-icon.png" alt="" aria-hidden="true" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    )
+                    })}
+                  </div>
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {homepageNewArrivals.length > 0 && <section aria-labelledby="shop-new-arrivals" className="shop-new-arrivals">
+        <header className="shop-new-arrivals-heading shop-product-collection-heading">
+          <div>
+            <span className="shop-eyebrow">FRESH FROM THE LOOM</span>
+            <h2 id="shop-new-arrivals">New Arrivals</h2>
+            <p>Meet the latest rugs selected for your home.</p>
+          </div>
+          {homepageNewArrivals.length > 4 && <div aria-label="New arrivals controls" className="shop-new-arrivals-controls">
+            <button aria-label="Previous new arrivals" onClick={() => document.getElementById('shop-new-arrivals-list')?.scrollBy({ left: -320, behavior: 'smooth' })} type="button">←</button>
+            <button aria-label="Next new arrivals" onClick={() => document.getElementById('shop-new-arrivals-list')?.scrollBy({ left: 320, behavior: 'smooth' })} type="button">→</button>
+          </div>}
+        </header>
+        <div aria-label="New arrival products" className="shop-product-grid shop-new-arrival-grid" id="shop-new-arrivals-list">
+          {homepageNewArrivals.map((product, index) => {
+            const id = productId(product)
+            const productKey = String(id)
+            const name = value(product, 'productName', 'ProductName', 'Handwoven rug')
+            const productVariants = variantsByProduct[productKey] || []
+            const selectedVariant = productVariants.find(
+              (variant) => String(variantId(variant)) === selectedSizeIds[productKey],
+            ) || productVariants[0]
+            const priceSource = selectedVariant || product
+            const price = getPrice(priceSource)
+            const oldPrice = Number(value(priceSource, 'price', 'Price', 0))
+            const offerPercent = getDiscountPercent(priceSource)
+            return (
+              <article className="shop-product-card shop-new-arrival-card" key={id ?? `new-arrival-${index}`}>
+                <div className="shop-product-media">
+                  <ShopProductGallery
+                    primaryImage={imageKey(product) || `/images/rug-showcase/${fallbackProductArtwork(product, index)}`}
+                    productId={id}
+                    productName={name}
+                    tone={index % 4}
+                  />
+                  {offerPercent > 0 && (
+                    <span className="shop-product-offer-badge">{offerPercent}% OFF</span>
+                  )}
+                  <button
+                    aria-label={`${wishlistIds.includes(productKey) ? 'Remove' : 'Add'} ${name} ${wishlistIds.includes(productKey) ? 'from' : 'to'} wishlist`}
+                    aria-pressed={wishlistIds.includes(productKey)}
+                    className={`shop-product-wishlist${wishlistIds.includes(productKey) ? ' selected' : ''}`}
+                    onClick={() => toggleWishlist(product)}
+                    type="button"
+                  >{wishlistIds.includes(productKey) ? '♥' : '♡'}</button>
+                </div>
+                <div className="shop-product-info">
+                  <div className="shop-product-tags"><span className="shop-product-tag featured">New arrival</span></div>
+                  <span className="shop-product-category">{value(product, 'categoryName', 'CategoryName', 'Jaysha collection')}</span>
+                  <h3>{name}</h3>
+                  <div className="shop-product-meta">
+                    <span>{value(product, 'material', 'Material', 'Handwoven')}</span>
+                    {!productVariants.length && value(product, 'size', 'Size') && <span>{value(product, 'size', 'Size')}</span>}
+                  </div>
+                  {productVariants.length > 0 ? (
+                    <label className="shop-size-select">
+                      <span>Size</span>
+                      <select
+                        aria-label={`Choose size for ${name}`}
+                        onChange={(event) => setSelectedSizeIds((current) => ({
+                          ...current,
+                          [productKey]: event.target.value,
+                        }))}
+                        value={String(variantId(selectedVariant) || '')}
+                      >
+                        {productVariants.map((variant, variantIndex) => (
+                          <option
+                            disabled={Number(value(variant, 'stockQuantity', 'StockQuantity', 0)) <= 0}
+                            key={variantId(variant) || `${productKey}-${variantIndex}`}
+                            value={String(variantId(variant) || '')}
+                          >
+                            {value(variant, 'sizeLabel', 'SizeLabel', 'Size')}
+                            {Number(value(variant, 'stockQuantity', 'StockQuantity', 0)) <= 0 ? ' · Out of stock' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : <span aria-hidden="true" className="shop-size-select-placeholder" />}
+                  {variantErrors[productKey] && <p className="shop-size-error" role="status">Size options load nahi ho sake: {variantErrors[productKey]}</p>}
+                  <div className="shop-product-buy">
+                    <span className="shop-price">{money(price)}{oldPrice > price && <del>{money(oldPrice)}</del>}</span>
+                    <div className="shop-product-card-actions">
                       <button
-                        aria-label={`Buy ${name} now`}
-                        className="shop-add-button"
-                        disabled={addingProduct !== null}
-                        onClick={() => openProductDetails(product)}
+                        aria-label={productVariants.length ? `Choose size and buy ${name}` : `Buy ${name} now`}
+                        className="shop-buy-now-button"
+                        disabled={addingProduct !== null
+                          || (selectedVariant && Number(value(selectedVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)}
+                        onClick={() => buyNowProduct(product)}
                         type="button"
                       >
-                        <Icon name="plus" size={16} /><span>Buy now</span>
+                        Buy now
+                      </button>
+                      <button
+                        aria-label={productVariants.length ? `Choose size and add ${name} to cart` : `Add ${name} to cart`}
+                        className="shop-add-button"
+                        disabled={addingProduct !== null
+                          || (selectedVariant && Number(value(selectedVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)}
+                        onClick={() => productVariants.length ? openProductDetails(product) : addProduct(product)}
+                        type="button"
+                      >
+                        <img className="shop-cart-button-icon" src="/images/cart-icon.png" alt="" aria-hidden="true" />
                       </button>
                     </div>
                   </div>
-                </article>
-              )
-            })}
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      </section>}
+
+      <section aria-labelledby="shop-bespoke-title" className="shop-configurator">
+        <div className="shop-configurator-copy">
+          <span className="shop-eyebrow">MADE FOR YOUR SPACE</span>
+          <h2 id="shop-bespoke-title">Create your custom carpet.</h2>
+          <p>Share your measurements, colour preference and a reference image. Our team will review your design and contact you with a final quote.</p>
+          {customRequestError && <p className="custom-order-message error" role="alert">{customRequestError}</p>}
+          {customRequestSuccess && <p className="custom-order-message success" role="status">{customRequestSuccess}</p>}
+          {!customerSession?.token
+            ? <div className="custom-order-login-prompt">
+              <p>Sign in to your customer account to submit a custom carpet request.</p>
+              <a href="/customer/login" onClick={() => sessionStorage.setItem(CUSTOMER_RETURN_TO_KEY, '/shop')}>Sign in to continue <span aria-hidden="true">→</span></a>
+            </div>
+            : <form className="shop-configurator-fields custom-order-form" onSubmit={submitCustomOrder}>
+              <label className="custom-order-field">Your name
+                <input autoComplete="name" maxLength="150" onChange={(event) => setCustomOrderForm((current) => ({ ...current, customerName: event.target.value }))} required value={customOrderForm.customerName} />
+              </label>
+              <label className="custom-order-field">Email
+                <input autoComplete="email" maxLength="150" onChange={(event) => setCustomOrderForm((current) => ({ ...current, email: event.target.value }))} required type="email" value={customOrderForm.email} />
+              </label>
+              <label className="custom-order-field">Mobile number
+                <input autoComplete="tel" maxLength="20" onChange={(event) => setCustomOrderForm((current) => ({ ...current, mobileNumber: event.target.value }))} required type="tel" value={customOrderForm.mobileNumber} />
+              </label>
+              <div className="custom-order-size">
+                <label className="custom-order-field">Width
+                  <input max="1000" min="10" onChange={(event) => setCustomOrderForm((current) => ({ ...current, width: event.target.value }))} required step="0.1" type="number" value={customOrderForm.width} />
+                </label>
+                <label className="custom-order-field">Length
+                  <input max="1000" min="10" onChange={(event) => setCustomOrderForm((current) => ({ ...current, length: event.target.value }))} required step="0.1" type="number" value={customOrderForm.length} />
+                </label>
+                <label className="custom-order-field">Unit
+                  <select onChange={(event) => setCustomOrderForm((current) => ({ ...current, sizeUnit: event.target.value }))} value={customOrderForm.sizeUnit}>
+                    <option value="cm">cm</option>
+                    <option value="in">inches</option>
+                  </select>
+                </label>
+              </div>
+              <label className="custom-order-field">Preferred colour
+                <input maxLength="80" onChange={(event) => setCustomOrderForm((current) => ({ ...current, colorName: event.target.value }))} placeholder="e.g. warm ivory with terracotta accents" required value={customOrderForm.colorName} />
+              </label>
+              <label className="custom-order-field custom-order-colour-picker">Colour sample
+                <input aria-label="Choose a colour sample" onChange={(event) => setCustomOrderForm((current) => ({ ...current, colorHex: event.target.value }))} type="color" value={customOrderForm.colorHex} />
+              </label>
+              <label className="custom-order-field custom-order-upload">Carpet reference image
+                <input accept="image/jpeg,image/png,image/webp,image/gif" onChange={(event) => { setCustomReferenceImage(event.target.files?.[0] || null); setCustomRequestError('') }} required={!customReferenceImage} type="file" />
+                <small>JPG, PNG, WebP or GIF · up to 15 MB. Choose an image from your device gallery.</small>
+                {customReferencePreview && <img alt="Preview of your carpet reference" className="custom-order-image-preview" src={customReferencePreview} />}
+              </label>
+              <label className="custom-order-field custom-order-notes-input">Additional instructions (optional)
+                <textarea maxLength="1000" onChange={(event) => setCustomOrderForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Pattern, material, room or other details..." value={customOrderForm.notes} />
+              </label>
+              <button className="custom-order-submit" disabled={submittingCustomRequest} type="submit">
+                {submittingCustomRequest ? 'Submitting request...' : 'Submit custom request'}
+              </button>
+            </form>}
+        </div>
+        <aside className="shop-quote-card custom-order-summary">
+          <span>CUSTOM CARPET REQUEST</span>
+          <strong>Designed around you.</strong>
+          <small>Choose your exact size, share your colour and attach an inspiration image.</small>
+          <small>No payment is taken now. Our team will contact you to confirm feasibility and the final price.</small>
+        </aside>
+      </section>
+
+      {homepageOffer && <section aria-label={`Special offer: ${homepageOffer.title}`} className="shop-homepage-offer">
+        {homepageOffer.mediaType === 'video'
+          ? <video aria-hidden="true" autoPlay className="shop-homepage-offer-media" key={homepageOffer.mediaUrl} loop muted playsInline preload="metadata" src={getProductImageUrl(homepageOffer.mediaUrl)} />
+          : <img alt="" className="shop-homepage-offer-media" key={homepageOffer.mediaUrl} loading="lazy" src={getProductImageUrl(homepageOffer.mediaUrl)} />}
+        <span aria-hidden="true" className="shop-homepage-offer-shade" />
+        <div className="shop-homepage-offer-copy">
+          {homepageOffer.eyebrow && <span className="shop-homepage-offer-eyebrow">{homepageOffer.eyebrow}</span>}
+          <h2>{homepageOffer.title}</h2>
+          {homepageOffer.caption && <p>{homepageOffer.caption}</p>}
+          <a className="shop-homepage-offer-button" href={safeBannerUrl(homepageOffer.buttonUrl) || '#shop-products'}>{homepageOffer.buttonText}</a>
+        </div>
+        {homepageOffers.length > 1 && <div aria-label="Offer slides" className="shop-homepage-offer-controls">
+          <button
+            aria-label="Previous offer"
+            className="shop-homepage-offer-arrow"
+            onClick={() => setAnnouncementIndex((current) => (current - 1 + homepageOffers.length) % homepageOffers.length)}
+            type="button"
+          >‹</button>
+          <span aria-live="polite">{announcementIndex % homepageOffers.length + 1} / {homepageOffers.length}</span>
+          <button
+            aria-label="Next offer"
+            className="shop-homepage-offer-arrow"
+            onClick={() => setAnnouncementIndex((current) => (current + 1) % homepageOffers.length)}
+            type="button"
+          >›</button>
+        </div>}
+      </section>}
+
+      {homepageInspiration.length > 0 && <section aria-labelledby="shop-inspiration-title" className="shop-inspiration">
+        <header className="shop-editorial-heading">
+          <div><span className="shop-eyebrow">ROOMS WE LOVE</span><h2 id="shop-inspiration-title">Collected for considered homes.</h2></div>
+          <p>Illustrative room imagery for inspiration. Select a look to explore rugs in that mood.</p>
+        </header>
+        <div className="shop-inspiration-grid">
+            {homepageInspiration.map((item) => (
+              <button className="shop-inspiration-card" key={item.id} onClick={() => { setSearch(''); setSelectedCategory('All rugs'); document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' }) }} type="button">
+                {item.mediaType === 'video'
+                  ? <video aria-label={`${item.title} interior inspiration`} autoPlay loop muted playsInline preload="metadata" src={getProductImageUrl(item.mediaUrl)} />
+                  : <img alt={`${item.title} interior inspiration`} loading="lazy" src={getProductImageUrl(item.mediaUrl)} />}
+                <span className="shop-ugc-caption"><small>JAYSHA ROOM NOTES</small><strong>{item.title}</strong><span>{item.caption}</span></span>
+                <span aria-hidden="true" className="shop-ugc-shop-link">Explore look ↗</span>
+              </button>
+            ))}
+        </div>
+        <p className="shop-image-disclaimer">Styling images are illustrative and are not customer-submitted photographs.</p>
+      </section>}
+
+      <section aria-labelledby="shop-trust-title" className="shop-trust">
+        <div className="shop-trust-intro">
+          <span className="shop-eyebrow">CRAFTED WITH CARE</span>
+          <h2 id="shop-trust-title">Good design. Thoughtful details.</h2>
+          <p>We focus on tactile materials, considered patterns and helpful service, so choosing a rug feels as good as living with it.</p>
+          <div className="shop-trust-values">
+            <span><b>✳</b> Material and care details on every product</span>
+            <span><b>✳</b> Multiple product photos where available</span>
+            <span><b>✳</b> Support for sizing and selection</span>
           </div>
-        )}
+        </div>
+        <div className="shop-review-panel" id="shop-reviews">
+          <div className="shop-review-heading"><span className="shop-eyebrow">A NOTE ON REVIEWS</span><span aria-hidden="true">★★★★★</span></div>
+          <h3>Room for a real customer story.</h3>
+          <p>When verified customer reviews are available, this space can feature their words and the rug they chose.</p>
+          <div className="shop-review-byline"><span aria-hidden="true">J</span><span><strong>Jaysha Carpet</strong><small>Customer stories coming soon</small></span></div>
+        </div>
+      </section>
+
+      <section aria-labelledby="shop-journal-title" className="shop-journal" id="shop-journal">
+        <header className="shop-editorial-heading shop-journal-heading">
+          <div>
+            <span className="shop-eyebrow">NOTES FOR A MORE THOUGHTFUL HOME</span>
+            <h2 id="shop-journal-title">The Jaysha journal.</h2>
+          </div>
+          <p>Ideas, inspiration and useful guidance for choosing a rug and making it part of your home.</p>
+        </header>
+        <div className="shop-journal-grid">
+          {journalArticles.map((article, index) => (
+            <details className="shop-journal-card" id={`shop-journal-${article.id}`} key={article.id}>
+              <summary>
+                <span className="shop-journal-image">
+                  {article.mediaType === 'video'
+                    ? <video aria-label={article.imageAlt || article.title} autoPlay loop muted playsInline preload="metadata" src={getProductImageUrl(article.mediaUrl || article.image)} />
+                    : <img alt={article.imageAlt} loading="lazy" src={getProductImageUrl(article.mediaUrl || article.image)} />}
+                  <span className="shop-journal-image-index">0{index + 1}</span>
+                  <span aria-hidden="true" className="shop-journal-open-icon">+</span>
+                </span>
+                <span className="shop-journal-card-copy">
+                  <span className="shop-journal-category">{article.category}</span>
+                  <strong>{article.title}</strong>
+                  <span className="shop-journal-excerpt">{article.excerpt}</span>
+                  <span className="shop-journal-read">Read the story <span aria-hidden="true">↗</span></span>
+                </span>
+              </summary>
+              <article aria-label={article.title} className="shop-journal-article">
+                <div className="shop-journal-article-meta"><span>{article.category}</span><span>{article.readTime}</span></div>
+                <h3>{article.title}</h3>
+                {article.paragraphs.map((paragraph) => <p key={paragraph}>{paragraph}</p>)}
+              </article>
+            </details>
+          ))}
+        </div>
+      </section>
+
+      <section aria-labelledby="shop-final-cta-title" className="shop-final-cta">
+        <div className="shop-final-glass-card">
+          <span className="shop-eyebrow">A MORE PERSONAL KIND OF COMFORT</span>
+          <h2 id="shop-final-cta-title">Some things are better felt.</h2>
+          <p>Explore a favourite rug, or get in touch with the store team to ask whether a wool sample box is available for your home.</p>
+          <div className="shop-bespoke-actions">
+            <button className="shop-bespoke-primary" onClick={() => document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })} type="button">Shop the collection <span aria-hidden="true">↑</span></button>
+            <a className="shop-bespoke-secondary" href="#shop-footer">Request a sample box <span aria-hidden="true">→</span></a>
+          </div>
+          <small>Sample requests are handled by the store team; availability may vary.</small>
+        </div>
       </section>
 
       <ShopFooter
         customerSession={customerSession}
         onCartClick={() => navigateCart(true)}
-        onShopClick={() => navigateCart(false)}
+        onShopClick={navigateHome}
       />
 
       {detailsProduct && (
@@ -1504,9 +2274,35 @@ function ShopPage() {
               {activeProductVideo?.error && <p className="shop-details-status" role="status">{activeProductVideo.error}</p>}
               <dl>
                 <div><dt>Material</dt><dd>{value(detailsProduct, 'material', 'Material', 'Handwoven')}</dd></div>
-                {value(detailsProduct, 'size', 'Size') && <div><dt>Size</dt><dd>{value(detailsProduct, 'size', 'Size')}</dd></div>}
+                {activeProductVariant
+                  ? <div><dt>Size</dt><dd>{value(activeProductVariant, 'sizeLabel', 'SizeLabel')}</dd></div>
+                  : value(detailsProduct, 'size', 'Size') && <div><dt>Size</dt><dd>{value(detailsProduct, 'size', 'Size')}</dd></div>}
                 {value(detailsProduct, 'color', 'Color') && <div><dt>Color</dt><dd>{value(detailsProduct, 'color', 'Color')}</dd></div>}
               </dl>
+              {activeProductVariants.length > 0 && (
+                <label className="shop-size-select shop-details-size-select">
+                  <span>Choose size</span>
+                  <select
+                    aria-label={`Choose size for ${value(detailsProduct, 'productName', 'ProductName', 'product')}`}
+                    onChange={(event) => setSelectedSizeIds((current) => ({
+                      ...current,
+                      [activeProductId]: event.target.value,
+                    }))}
+                    value={String(variantId(activeProductVariant) || '')}
+                  >
+                    {activeProductVariants.map((variant, variantIndex) => (
+                      <option
+                        disabled={Number(value(variant, 'stockQuantity', 'StockQuantity', 0)) <= 0}
+                        key={variantId(variant) || `${activeProductId}-${variantIndex}`}
+                        value={String(variantId(variant) || '')}
+                      >
+                        {value(variant, 'sizeLabel', 'SizeLabel', 'Size')}
+                        {Number(value(variant, 'stockQuantity', 'StockQuantity', 0)) <= 0 ? ' · Out of stock' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <section aria-label="Customer reviews" className="shop-product-reviews">
                 <div className="shop-product-reviews-heading"><h3>Customer reviews</h3><span>{productReviews.length}</span></div>
                 {reviewsLoading ? <p className="shop-details-status">Reviews loading…</p> : reviewsError ? <p className="shop-details-status">{reviewsError}</p> : productReviews.length === 0 ? <p className="shop-details-status">No published reviews yet. <a href={customerSession ? '/account/reviews' : '/customer/login'}>{customerSession ? 'Write a review' : 'Sign in to review'}</a></p> : <div className="shop-product-reviews-list">{productReviews.slice(0, 4).map((review, index) => <article key={value(review, 'reviewId', 'ReviewId', index)}><strong>{value(review, 'customerName', 'CustomerName', 'Customer')} <span>{'★'.repeat(Number(value(review, 'rating', 'Rating', 0)))}</span></strong><p>{value(review, 'reviewText', 'ReviewText', 'Rated this product.')}</p></article>)}</div>}
@@ -1515,14 +2311,15 @@ function ShopPage() {
               {detailsError && <p className="shop-error" role="alert">{detailsError}</p>}
               <div className="shop-details-buy">
                 <strong>
-                  {money(getPrice(detailsProduct))}
-                  {getDiscountPercent(detailsProduct) > 0 && <del>{money(value(detailsProduct, 'price', 'Price'))}</del>}
+                  {money(getPrice(activeProductPriceSource))}
+                  {getDiscountPercent(activeProductPriceSource) > 0 && <del>{money(value(activeProductPriceSource, 'price', 'Price'))}</del>}
                 </strong>
                 <div className="shop-details-actions">
                   <button
                     className="shop-secondary-button"
                     disabled={addingProduct !== null
                       || loadingDetails
+                      || (activeProductVariant && Number(value(activeProductVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)
                       || Number(value(detailsProduct, 'stockQuantity', 'StockQuantity', 1)) <= 0}
                     onClick={() => handleDetailsPurchase(false)}
                     type="button"
@@ -1533,6 +2330,7 @@ function ShopPage() {
                     className="shop-primary-button"
                     disabled={addingProduct !== null
                       || loadingDetails
+                      || (activeProductVariant && Number(value(activeProductVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)
                       || Number(value(detailsProduct, 'stockQuantity', 'StockQuantity', 1)) <= 0}
                     onClick={() => handleDetailsPurchase(true)}
                     type="button"

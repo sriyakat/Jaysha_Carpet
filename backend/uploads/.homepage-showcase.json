@@ -1,0 +1,40 @@
+[
+  {
+    "id": "sculptural-forms",
+    "title": "Sculptural Forms",
+    "eyebrow": "FORM & FEEL",
+    "mediaUrl": "/uploads/media/homepage-showcase/597b278d-5ae0-4402-8ef6-779f95a5424b.webp",
+    "mediaType": "image",
+    "displayOrder": 2,
+    "isActive": true,
+    "caption": ""
+  },
+  {
+    "id": "earth-in-motion",
+    "title": "Earth in Motion",
+    "eyebrow": "WARM TONES",
+    "mediaUrl": "/uploads/media/homepage-showcase/d61cc942-0391-40e9-82d6-5259c9f37670.mp4",
+    "mediaType": "video",
+    "displayOrder": 1,
+    "isActive": true
+  },
+  {
+    "id": "soft-minimalism",
+    "title": "Soft Minimalism",
+    "eyebrow": "QUIET LAYERS",
+    "mediaUrl": "/uploads/media/homepage-showcase/8aa474c4-51f2-4acf-9f29-6253fca7173b.jpg",
+    "mediaType": "image",
+    "displayOrder": 2,
+    "isActive": true
+  },
+  {
+    "id": "curated-interior-moods",
+    "title": "Curated Interior Moods",
+    "eyebrow": "ROOM NOTES",
+    "mediaUrl": "/uploads/media/homepage-showcase/4209444c-3902-492b-a4d4-bb7e5007cec2.mp4",
+    "mediaType": "video",
+    "displayOrder": 3,
+    "isActive": true,
+    "caption": ""
+  }
+]

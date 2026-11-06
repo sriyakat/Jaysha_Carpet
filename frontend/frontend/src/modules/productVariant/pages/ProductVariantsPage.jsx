@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { getProducts } from '../../product/api/productApi.js'
+import { getProductImageUrl, getProducts } from '../../product/api/productApi.js'
 import AdminModuleLayout from '../../shared/components/AdminModuleLayout.jsx'
+import ImageUploadField from '../../shared/components/ImageUploadField.jsx'
+import { deleteContentImage, getContentImageMap, uploadContentImage } from '../../shared/api/contentImageApi.js'
 import '../shared/AdminModulePage.css'
 import { createVariant, getAdminVariants, setVariantActive, updateVariant } from '../api/productVariantApi.js'
 
@@ -20,6 +22,10 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
   const [productFilter, setProductFilter] = useState('')
   const [activeFilter, setActiveFilter] = useState('')
   const [form, setForm] = useState(emptyForm)
+  const [imageMap, setImageMap] = useState({})
+  const [imageFile, setImageFile] = useState(null)
+  const [imageKey, setImageKey] = useState('')
+  const [imageRemoved, setImageRemoved] = useState(false)
   const [editing, setEditing] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -31,8 +37,15 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
     setLoading(true)
     setError('')
     try {
-      const items = await getAdminVariants({ productId: productFilter, isActive: activeFilter })
-      setVariants(items)
+      const [items, images] = await Promise.all([
+        getAdminVariants({ productId: productFilter, isActive: activeFilter }),
+        getContentImageMap('variants'),
+      ])
+      setImageMap(images)
+      setVariants(items.map((item) => ({
+        ...item,
+        imageStorageKey: images[String(value(item, 'productVariantId', 'ProductVariantId'))] || '',
+      })))
       setError('')
     } catch (loadError) {
       setError(loadError.message)
@@ -43,21 +56,9 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
 
   useEffect(() => {
     let active = true
-    getAdminVariants({ productId: productFilter, isActive: activeFilter })
-      .then((items) => {
-        if (active) {
-          setVariants(items)
-          setError('')
-        }
-      })
-      .catch((loadError) => {
-        if (active) setError(loadError.message)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
+    Promise.resolve().then(() => active && loadVariants())
     return () => { active = false }
-  }, [productFilter, activeFilter])
+  }, [loadVariants])
   useEffect(() => {
     let active = true
     getProducts().then((items) => {
@@ -76,12 +77,18 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
   function startCreate() {
     setEditing(null)
     setForm({ ...emptyForm, ProductId: productFilter || String(value(products[0], 'productId', 'ProductId', '')) })
+    setImageFile(null)
+    setImageKey('')
+    setImageRemoved(false)
     setFormError('')
     setShowForm(true)
   }
 
   function startEdit(variant) {
     setEditing(variant)
+    setImageFile(null)
+    setImageKey(imageMap[String(value(variant, 'productVariantId', 'ProductVariantId'))] || '')
+    setImageRemoved(false)
     setForm({
       ProductId: String(value(variant, 'productId', 'ProductId')),
       SizeLabel: value(variant, 'sizeLabel', 'SizeLabel'),
@@ -105,13 +112,31 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
       DiscountPrice: form.DiscountPrice === '' ? null : Number(form.DiscountPrice),
       StockQuantity: Number(form.StockQuantity),
     }
+    let savedVariant
     try {
-      if (editing) await updateVariant(value(editing, 'productVariantId', 'ProductVariantId'), data)
-      else await createVariant(data)
-      setShowForm(false)
-      await loadVariants()
+      savedVariant = editing
+        ? await updateVariant(value(editing, 'productVariantId', 'ProductVariantId'), data)
+        : await createVariant(data)
     } catch (saveError) {
       setFormError(saveError.message)
+      setSaving(false)
+      return
+    }
+
+    const variantId = editing
+      ? value(editing, 'productVariantId', 'ProductVariantId')
+      : value(savedVariant?.data, 'productVariantId', 'ProductVariantId')
+    try {
+      if (imageFile) await uploadContentImage('variants', variantId, imageFile)
+      else if (imageRemoved && variantId) await deleteContentImage('variants', variantId)
+      setShowForm(false)
+      await loadVariants()
+    } catch (imageError) {
+      if (!editing && variantId) {
+        setEditing(savedVariant?.data || { ProductVariantId: variantId })
+      }
+      setFormError(`Variant save ho gaya, lekin image save nahi hui: ${imageError.message}`)
+      await loadVariants()
     } finally {
       setSaving(false)
     }
@@ -147,6 +172,7 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
           <h2>{editing ? 'Edit variant' : 'Add a variant'}</h2>
           {formError && <p className="module-alert" role="alert">{formError}</p>}
           <form className="module-form" onSubmit={submit}>
+            <div className="module-field wide"><span>Variant image (optional)</span><ImageUploadField file={imageFile} hint="JPEG, PNG, WebP ya GIF · Maximum 15 MB" id="variantImage" label="Variant image" onClear={() => { setImageFile(null); setImageKey(''); setImageRemoved(true) }} onFileChange={(file) => { setImageFile(file); setImageRemoved(false) }} value={imageKey} /></div>
             <label className="module-field">Product<select className="module-select" onChange={(event) => setForm({ ...form, ProductId: event.target.value })} required value={form.ProductId}><option value="">Select product</option>{products.map((product) => <option key={value(product, 'productId', 'ProductId')} value={value(product, 'productId', 'ProductId')}>{value(product, 'productName', 'ProductName')}</option>)}</select></label>
             <label className="module-field">Size / label<input className="module-input" maxLength="100" onChange={(event) => setForm({ ...form, SizeLabel: event.target.value })} required value={form.SizeLabel} /></label>
             <label className="module-field">Price<input className="module-input" min="0.01" onChange={(event) => setForm({ ...form, Price: event.target.value })} required step="0.01" type="number" value={form.Price} /></label>
@@ -164,7 +190,7 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
               {variants.map((variant) => {
                 const id = value(variant, 'productVariantId', 'ProductVariantId')
                 const active = isEnabled(value(variant, 'isActive', 'IsActive', true))
-                return <tr key={id}><td><strong>{productNames.get(String(value(variant, 'productId', 'ProductId'))) || value(variant, 'productName', 'ProductName', 'Product')}</strong><span className="muted">{value(variant, 'sizeLabel', 'SizeLabel')}</span></td><td><strong>₹{value(variant, 'discountPrice', 'DiscountPrice') ?? value(variant, 'price', 'Price')}</strong><span className="muted">{value(variant, 'discountPrice', 'DiscountPrice') != null ? `List ₹${value(variant, 'price', 'Price')}` : ''}</span></td><td>{value(variant, 'stockQuantity', 'StockQuantity', 0)}</td><td>{active ? 'Active' : 'Inactive'}</td><td><div className="module-row-actions"><button className="module-button" onClick={() => startEdit(variant)} type="button">Edit</button><button className="module-button" onClick={() => toggleActive(variant)} type="button">{active ? 'Deactivate' : 'Activate'}</button></div></td></tr>
+                return <tr key={id}><td>{value(variant, 'imageStorageKey', 'ImageStorageKey') && <img alt="" className="module-image-thumbnail" src={getProductImageUrl(value(variant, 'imageStorageKey', 'ImageStorageKey'))} />}<strong>{productNames.get(String(value(variant, 'productId', 'ProductId'))) || value(variant, 'productName', 'ProductName', 'Product')}</strong><span className="muted">{value(variant, 'sizeLabel', 'SizeLabel')}</span></td><td><strong>₹{value(variant, 'discountPrice', 'DiscountPrice') ?? value(variant, 'price', 'Price')}</strong><span className="muted">{value(variant, 'discountPrice', 'DiscountPrice') != null ? `List ₹${value(variant, 'price', 'Price')}` : ''}</span></td><td>{value(variant, 'stockQuantity', 'StockQuantity', 0)}</td><td>{active ? 'Active' : 'Inactive'}</td><td><div className="module-row-actions"><button className="module-button" onClick={() => startEdit(variant)} type="button">Edit</button><button className="module-button" onClick={() => toggleActive(variant)} type="button">{active ? 'Deactivate' : 'Activate'}</button></div></td></tr>
               })}
             </tbody></table></div>
           )}

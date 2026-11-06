@@ -1,0 +1,42 @@
+[
+  {
+    "id": "soft-neutrals",
+    "title": "Soft neutrals",
+    "caption": "Quiet layers, natural light.",
+    "mediaUrl": "/uploads/media/homepage-showcase/d55bb24a-7050-4f7b-969c-330100e04f15.webp",
+    "mediaType": "image",
+    "displayOrder": 2,
+    "isActive": true,
+    "eyebrow": ""
+  },
+  {
+    "id": "a-little-heritage",
+    "title": "A little heritage",
+    "caption": "Pattern with a sense of place.",
+    "mediaUrl": "/uploads/media/homepage-showcase/186b417b-21b4-4c0d-a369-28b6fcd1655c.mp4",
+    "mediaType": "video",
+    "displayOrder": 1,
+    "isActive": true,
+    "eyebrow": ""
+  },
+  {
+    "id": "warm-modern",
+    "title": "Warm modern",
+    "caption": "An easy way to add warmth.",
+    "mediaUrl": "/uploads/media/homepage-showcase/292e4615-c6ef-45a6-b885-f1cc1105ecbb.jpg",
+    "mediaType": "image",
+    "displayOrder": 2,
+    "isActive": true,
+    "eyebrow": ""
+  },
+  {
+    "id": "colour-considered",
+    "title": "Colour, considered",
+    "caption": "A thoughtful note of blue.",
+    "mediaUrl": "/uploads/media/homepage-showcase/ab19d90c-dc61-4929-af5f-c5621bc63395.webp",
+    "mediaType": "image",
+    "displayOrder": 3,
+    "isActive": true,
+    "eyebrow": ""
+  }
+]

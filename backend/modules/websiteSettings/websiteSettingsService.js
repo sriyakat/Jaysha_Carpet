@@ -1,5 +1,6 @@
 
 const websiteSettingsRepository = require("./websiteSettingsRepository.js");
+const { readAssignment } = require("../../utils/contentImageStorage");
 
 // ADMIN CHECK
 const checkAdmin = (user) => {
@@ -24,7 +25,10 @@ const getWebsiteSettings = async () => {
         throw new Error("Website settings not found.");
     }
 
-    return settings;
+    return {
+        ...settings,
+        LogoStorageKey: await readAssignment("website-settings", "store")
+    };
 };
 
 // UPDATE SETTINGS

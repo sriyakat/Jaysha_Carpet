@@ -1,4 +1,7 @@
 const service = require("./productVideosService.js");
+const repository = require("./productVideosRepository.js");
+const path = require("node:path");
+const { saveMedia, deleteMedia } = require("../../utils/mediaStorage");
 
 // Common error handler
 const handleError = (res, error) => {
@@ -27,6 +30,7 @@ const handleError = (res, error) => {
 
     const statusCode =
         sqlErrorMessages[error.number] ||
+        error.statusCode ||
         (error.message === "Authentication required." ? 401 :
             error.message === "Only admin can manage product videos." ? 403 : 500);
 
@@ -38,8 +42,20 @@ const handleError = (res, error) => {
 
 // ADD
 const addProductVideo = async (req, res) => {
+    let uploadedMedia;
     try {
-        const result = await service.addProductVideo(req.body, req.user);
+        const data = { ...req.body };
+        if (req.file) {
+            uploadedMedia = await saveMedia(req.file, "product-videos", "video");
+            data.StorageKey = uploadedMedia.StorageKey;
+            data.OriginalFileName = path.basename(req.file.originalname).slice(0, 255);
+            data.FileType = uploadedMedia.FileType;
+            data.FileSize = uploadedMedia.FileSize;
+        }
+        if (typeof data.IsIllustrativePreview === "string") {
+            data.IsIllustrativePreview = data.IsIllustrativePreview === "true";
+        }
+        const result = await service.addProductVideo(data, req.user);
 
         res.status(201).json({
             success: true,
@@ -47,18 +63,39 @@ const addProductVideo = async (req, res) => {
             data: result
         });
     } catch (error) {
+        if (uploadedMedia) await deleteMedia(uploadedMedia.StorageKey);
         handleError(res, error);
     }
 };
 
 // UPDATE
 const updateProductVideo = async (req, res) => {
+    let uploadedMedia;
+    let saved = false;
     try {
+        const productVideoId = Number(req.params.productVideoId);
+        const existing = req.file ? await repository.getProductVideoById(productVideoId) : null;
+        const data = { ...req.body };
+        if (req.file) {
+            uploadedMedia = await saveMedia(req.file, "product-videos", "video");
+            data.StorageKey = uploadedMedia.StorageKey;
+            data.OriginalFileName = path.basename(req.file.originalname).slice(0, 255);
+            data.FileType = uploadedMedia.FileType;
+            data.FileSize = uploadedMedia.FileSize;
+        }
+        if (typeof data.IsIllustrativePreview === "string") {
+            data.IsIllustrativePreview = data.IsIllustrativePreview === "true";
+        }
         const result = await service.updateProductVideo(
-            req.params.productVideoId,
-            req.body,
+            productVideoId,
+            data,
             req.user
         );
+        saved = true;
+        if (uploadedMedia) {
+            const oldStorageKey = existing?.StorageKey ?? existing?.storageKey;
+            if (oldStorageKey) await deleteMedia(oldStorageKey);
+        }
 
         res.status(200).json({
             success: true,
@@ -66,6 +103,7 @@ const updateProductVideo = async (req, res) => {
             data: result
         });
     } catch (error) {
+        if (uploadedMedia && !saved) await deleteMedia(uploadedMedia.StorageKey);
         handleError(res, error);
     }
 };
@@ -126,10 +164,13 @@ const getAllProductVideos = async (req, res) => {
 // DELETE
 const deleteProductVideo = async (req, res) => {
     try {
+        const existing = await repository.getProductVideoById(Number(req.params.productVideoId));
         const result = await service.deleteProductVideo(
             req.params.productVideoId,
             req.user
         );
+        const storageKey = existing?.StorageKey ?? existing?.storageKey;
+        if (storageKey) await deleteMedia(storageKey);
 
         res.status(200).json({
             success: true,

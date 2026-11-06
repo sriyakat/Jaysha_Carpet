@@ -29,6 +29,7 @@ function productValues(product) {
 
 function ProductFormModal({ product, categories, saving, error, onClose, onSubmit }) {
   const [values, setValues] = useState(() => productValues(product))
+  const [fieldErrors, setFieldErrors] = useState({})
   const [slugEdited, setSlugEdited] = useState(Boolean(product))
   const isEditing = Boolean(product)
 
@@ -44,10 +45,12 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
   function updateField(event) {
     const { name, value, type, checked } = event.target
     setValues((current) => ({ ...current, [name]: type === 'checkbox' ? checked : value }))
+    setFieldErrors((current) => ({ ...current, [name]: '' }))
   }
 
   function updateName(event) {
     const ProductName = event.target.value
+    setFieldErrors((current) => ({ ...current, ProductName: '' }))
     setValues((current) => ({
       ...current,
       ProductName,
@@ -59,6 +62,28 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
 
   function submitForm(event) {
     event.preventDefault()
+    const errors = {}
+    if (!values.ProductName.trim()) errors.ProductName = 'उत्पाद का नाम दर्ज करें।'
+    if (!values.CategoryId || !Number.isInteger(Number(values.CategoryId))) errors.CategoryId = 'उत्पाद की श्रेणी चुनें।'
+    if (values.SKU.trim().length > 60) errors.SKU = 'SKU 60 अक्षरों से अधिक नहीं होना चाहिए।'
+    if (values.Slug.trim() && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(values.Slug.trim().toLowerCase())) {
+      errors.Slug = 'URL नाम में केवल छोटे अंग्रेज़ी अक्षर, अंक और हाइफ़न इस्तेमाल करें।'
+    }
+    const price = Number(values.Price)
+    if (!Number.isFinite(price) || price <= 0) errors.Price = 'कीमत शून्य से अधिक होनी चाहिए।'
+    if (values.DiscountPrice !== '' && (
+      !Number.isFinite(Number(values.DiscountPrice))
+      || Number(values.DiscountPrice) < 0
+      || Number(values.DiscountPrice) >= price
+    )) errors.DiscountPrice = 'छूट की कीमत शून्य या उससे अधिक और मूल कीमत से कम होनी चाहिए।'
+    if (!Number.isInteger(Number(values.StockQuantity)) || Number(values.StockQuantity) < 0) {
+      errors.StockQuantity = 'स्टॉक की मात्रा शून्य या उससे बड़ी पूर्ण संख्या होनी चाहिए।'
+    }
+    if (Object.values(errors).some(Boolean)) {
+      setFieldErrors(errors)
+      return
+    }
+
     onSubmit({
       ...values,
       CategoryId: Number(values.CategoryId),
@@ -108,7 +133,7 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
           </button>
         </header>
 
-        <form className="category-form" onSubmit={submitForm}>
+        <form className="category-form" noValidate onSubmit={submitForm}>
           <div className="form-grid">
             <div className="form-field full">
               <label htmlFor="ProductName">Product name <span>*</span></label>
@@ -119,9 +144,11 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
                 name="ProductName"
                 onChange={updateName}
                 placeholder="e.g. Handwoven Wool Rug"
-                required
+                aria-invalid={Boolean(fieldErrors.ProductName)}
+                className={fieldErrors.ProductName ? 'field-invalid' : ''}
                 value={values.ProductName}
               />
+              {fieldErrors.ProductName && <span className="field-error">{fieldErrors.ProductName}</span>}
             </div>
 
             <div className="form-field">
@@ -130,7 +157,8 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
                 id="CategoryId"
                 name="CategoryId"
                 onChange={updateField}
-                required
+                aria-invalid={Boolean(fieldErrors.CategoryId)}
+                className={fieldErrors.CategoryId ? 'field-invalid' : ''}
                 value={values.CategoryId}
               >
                 <option value="">Select category</option>
@@ -140,23 +168,26 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
                   return <option key={id} value={id}>{name}</option>
                 })}
               </select>
+              {fieldErrors.CategoryId && <span className="field-error">{fieldErrors.CategoryId}</span>}
             </div>
 
             <div className="form-field">
-              <label htmlFor="SKU">SKU <span>*</span></label>
+              <label htmlFor="SKU">SKU</label>
               <input
                 id="SKU"
                 maxLength={60}
                 name="SKU"
                 onChange={updateField}
                 placeholder="JC-RUG-001"
-                required
+                aria-invalid={Boolean(fieldErrors.SKU)}
+                className={fieldErrors.SKU ? 'field-invalid' : ''}
                 value={values.SKU}
               />
+              {fieldErrors.SKU && <span className="field-error">{fieldErrors.SKU}</span>}
             </div>
 
             <div className="form-field full">
-              <label htmlFor="Slug">URL slug <span>*</span></label>
+              <label htmlFor="Slug">URL slug</label>
               <input
                 id="Slug"
                 maxLength={220}
@@ -166,49 +197,55 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
                   updateField(event)
                 }}
                 placeholder="handwoven-wool-rug"
-                required
+                aria-invalid={Boolean(fieldErrors.Slug)}
+                className={fieldErrors.Slug ? 'field-invalid' : ''}
                 value={values.Slug}
               />
+              {fieldErrors.Slug && <span className="field-error">{fieldErrors.Slug}</span>}
             </div>
 
             <div className="form-field">
               <label htmlFor="Price">Price (₹) <span>*</span></label>
               <input
                 id="Price"
-                min="0.01"
                 name="Price"
                 onChange={updateField}
-                required
                 step="0.01"
                 type="number"
                 value={values.Price}
+                aria-invalid={Boolean(fieldErrors.Price)}
+                className={fieldErrors.Price ? 'field-invalid' : ''}
               />
+              {fieldErrors.Price && <span className="field-error">{fieldErrors.Price}</span>}
             </div>
 
             <div className="form-field">
               <label htmlFor="DiscountPrice">Discount price (₹)</label>
               <input
                 id="DiscountPrice"
-                min="0"
                 name="DiscountPrice"
                 onChange={updateField}
                 step="0.01"
                 type="number"
                 value={values.DiscountPrice}
+                aria-invalid={Boolean(fieldErrors.DiscountPrice)}
+                className={fieldErrors.DiscountPrice ? 'field-invalid' : ''}
               />
+              {fieldErrors.DiscountPrice && <span className="field-error">{fieldErrors.DiscountPrice}</span>}
             </div>
 
             <div className="form-field">
               <label htmlFor="StockQuantity">Stock quantity</label>
               <input
                 id="StockQuantity"
-                min="0"
                 name="StockQuantity"
                 onChange={updateField}
-                required
                 type="number"
                 value={values.StockQuantity}
+                aria-invalid={Boolean(fieldErrors.StockQuantity)}
+                className={fieldErrors.StockQuantity ? 'field-invalid' : ''}
               />
+              {fieldErrors.StockQuantity && <span className="field-error">{fieldErrors.StockQuantity}</span>}
             </div>
 
             <div className="form-field">

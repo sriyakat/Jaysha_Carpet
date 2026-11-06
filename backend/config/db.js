@@ -10,7 +10,9 @@ const config = {
     port: Number(process.env.DB_PORT),
     options: {
         encrypt: false,
-        trustServerCertificate: true
+        trustServerCertificate: true,
+        connectTimeout: 15000,
+        requestTimeout: 30000
     },
     pool: {
         max: 10,

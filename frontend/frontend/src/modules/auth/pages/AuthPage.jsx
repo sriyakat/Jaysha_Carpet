@@ -7,6 +7,8 @@ function AuthPage({ mode, onLogin, onAdminCreated }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
+  const [showResetHelp, setShowResetHelp] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -21,7 +23,7 @@ function AuthPage({ mode, onLogin, onAdminCreated }) {
         onAdminCreated()
       } else {
         const response = await loginAdmin({ email, password })
-        onLogin(response.data)
+        onLogin(response.data, rememberMe)
       }
     } catch (requestError) {
       setError(requestError.message)
@@ -188,6 +190,19 @@ function AuthPage({ mode, onLogin, onAdminCreated }) {
               </div>
               {isSetup && <span className="auth-field-hint">Password kam se kam 8 characters ka hona chahiye.</span>}
             </div>
+
+            {!isSetup && (
+              <div className="auth-form-options">
+                <label className="auth-remember-option">
+                  <input checked={rememberMe} onChange={(event) => setRememberMe(event.target.checked)} type="checkbox" />
+                  <span>Remember me</span>
+                </label>
+                <button aria-expanded={showResetHelp} className="auth-forgot-button" onClick={() => setShowResetHelp((show) => !show)} type="button">Forgot password?</button>
+              </div>
+            )}
+            {showResetHelp && !isSetup && (
+              <p className="auth-reset-help" role="status">Admin password reset is managed by your store owner. Please contact them to regain access.</p>
+            )}
 
             {error && <p className="auth-error" role="alert">{error}</p>}
 

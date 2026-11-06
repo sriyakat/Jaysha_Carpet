@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import AdminModuleLayout from '../../shared/components/AdminModuleLayout.jsx'
+import ImageUploadField from '../../shared/components/ImageUploadField.jsx'
+import { deleteContentImage, getContentImageMap, uploadContentImage } from '../../shared/api/contentImageApi.js'
+import { getProductImageUrl } from '../../product/api/productApi.js'
 import '../shared/AdminModulePage.css'
 import { createCoupon, deleteCoupon, getCouponUsage, getCoupons, setCouponActive, updateCoupon } from '../api/adminCouponApi.js'
 
@@ -29,6 +32,10 @@ function defaultCoupon() {
 function CouponsPage({ user, onLogout, onNavigate }) {
   const [coupons, setCoupons] = useState([])
   const [form, setForm] = useState(defaultCoupon)
+  const [imageMap, setImageMap] = useState({})
+  const [imageFile, setImageFile] = useState(null)
+  const [imageKey, setImageKey] = useState('')
+  const [imageRemoved, setImageRemoved] = useState(false)
   const [editing, setEditing] = useState(null)
   const [showForm, setShowForm] = useState(false)
   const [usage, setUsage] = useState(null)
@@ -41,7 +48,12 @@ function CouponsPage({ user, onLogout, onNavigate }) {
     setLoading(true)
     setError('')
     try {
-      setCoupons(await getCoupons())
+      const [items, images] = await Promise.all([getCoupons(), getContentImageMap('coupons')])
+      setImageMap(images)
+      setCoupons(items.map((item) => ({
+        ...item,
+        imageStorageKey: images[String(value(item, 'couponId', 'CouponId'))] || '',
+      })))
     } catch (loadError) {
       setError(loadError.message)
     } finally {
@@ -51,8 +63,14 @@ function CouponsPage({ user, onLogout, onNavigate }) {
 
   useEffect(() => {
     let active = true
-    getCoupons().then((items) => {
-      if (active) setCoupons(items)
+    Promise.all([getCoupons(), getContentImageMap('coupons')]).then(([items, images]) => {
+      if (active) {
+        setImageMap(images)
+        setCoupons(items.map((item) => ({
+          ...item,
+          imageStorageKey: images[String(value(item, 'couponId', 'CouponId'))] || '',
+        })))
+      }
     }).catch((loadError) => {
       if (active) setError(loadError.message)
     }).finally(() => {
@@ -64,12 +82,18 @@ function CouponsPage({ user, onLogout, onNavigate }) {
   function startCreate() {
     setEditing(null)
     setForm(defaultCoupon())
+    setImageFile(null)
+    setImageKey('')
+    setImageRemoved(false)
     setFormError('')
     setShowForm(true)
   }
 
   function startEdit(coupon) {
     setEditing(coupon)
+    setImageFile(null)
+    setImageKey(imageMap[String(value(coupon, 'couponId', 'CouponId'))] || '')
+    setImageRemoved(false)
     setForm({
       couponCode: value(coupon, 'couponCode', 'CouponCode'),
       description: value(coupon, 'description', 'Description'),
@@ -102,13 +126,31 @@ function CouponsPage({ user, onLogout, onNavigate }) {
       usageLimit: form.usageLimit ? Number(form.usageLimit) : null,
       usagePerCustomer: Number(form.usagePerCustomer),
     }
+    let savedCoupon
     try {
-      if (editing) await updateCoupon(value(editing, 'couponId', 'CouponId'), data)
-      else await createCoupon(data)
-      setShowForm(false)
-      await load()
+      savedCoupon = editing
+        ? await updateCoupon(value(editing, 'couponId', 'CouponId'), data)
+        : await createCoupon(data)
     } catch (saveError) {
       setFormError(saveError.message)
+      setSaving(false)
+      return
+    }
+
+    const couponId = editing
+      ? value(editing, 'couponId', 'CouponId')
+      : value(savedCoupon?.data, 'couponId', 'CouponId')
+    try {
+      if (imageFile) await uploadContentImage('coupons', couponId, imageFile)
+      else if (imageRemoved && couponId) await deleteContentImage('coupons', couponId)
+      setShowForm(false)
+      await load()
+    } catch (imageError) {
+      if (!editing && couponId) {
+        setEditing(savedCoupon?.data || { CouponId: couponId })
+      }
+      setFormError(`Coupon save ho gaya, lekin image save nahi hui: ${imageError.message}`)
+      await load()
     } finally {
       setSaving(false)
     }
@@ -150,6 +192,7 @@ function CouponsPage({ user, onLogout, onNavigate }) {
         <div className="module-heading"><div><p className="module-eyebrow">PROMOTIONS</p><h1>Coupons & offers</h1><p>Create discount codes, control usage, and check redemption history.</p></div><button className="module-button primary" onClick={startCreate} type="button">Create coupon</button></div>
         {showForm && <section className="module-form-panel"><h2>{editing ? 'Edit coupon' : 'New coupon'}</h2>{formError && <p className="module-alert" role="alert">{formError}</p>}
           <form className="module-form" onSubmit={submit}>
+            <div className="module-field wide"><span>Offer image (optional)</span><ImageUploadField file={imageFile} hint="JPEG, PNG, WebP ya GIF · Maximum 15 MB" id="couponImage" label="Coupon image" onClear={() => { setImageFile(null); setImageKey(''); setImageRemoved(true) }} onFileChange={(file) => { setImageFile(file); setImageRemoved(false) }} value={imageKey} /></div>
             <label className="module-field">Coupon code<input className="module-input" maxLength="50" onChange={(event) => setForm({ ...form, couponCode: event.target.value.toUpperCase() })} required value={form.couponCode} /></label>
             <label className="module-field">Discount type<select className="module-select" onChange={(event) => setForm({ ...form, discountType: event.target.value })} value={form.discountType}><option value="PERCENTAGE">Percentage</option><option value="FIXED">Fixed amount</option></select></label>
             <label className="module-field">{form.discountType === 'PERCENTAGE' ? 'Discount (%)' : 'Discount (₹)'}<input className="module-input" min="0.01" onChange={(event) => setForm({ ...form, discountValue: event.target.value })} required step="0.01" type="number" value={form.discountValue} /></label>
@@ -172,7 +215,7 @@ function CouponsPage({ user, onLogout, onNavigate }) {
               const active = value(coupon, 'isActive', 'IsActive', false) === true || value(coupon, 'isActive', 'IsActive') === 1
               const discountType = value(coupon, 'discountType', 'DiscountType')
               const discount = discountType === 'PERCENTAGE' ? `${value(coupon, 'discountValue', 'DiscountValue')}%` : `₹${value(coupon, 'discountValue', 'DiscountValue')}`
-              return <tr key={id}><td><strong>{value(coupon, 'couponCode', 'CouponCode')}</strong><span className="muted">{value(coupon, 'description', 'Description')}</span></td><td><strong>{discount} off</strong><span className="muted">Min. ₹{value(coupon, 'minOrderAmount', 'MinOrderAmount', 0)}</span></td><td>{new Date(value(coupon, 'startDate', 'StartDate')).toLocaleDateString('en-IN')}<span className="muted">to {new Date(value(coupon, 'endDate', 'EndDate')).toLocaleDateString('en-IN')}</span></td><td>{value(coupon, 'usedCount', 'UsedCount', '—')} / {value(coupon, 'usageLimit', 'UsageLimit', '∞')}</td><td>{active ? 'Active' : 'Inactive'}</td><td><div className="module-row-actions"><button className="module-button" onClick={() => startEdit(coupon)} type="button">Edit</button><button className="module-button" onClick={() => toggleActive(coupon)} type="button">{active ? 'Pause' : 'Activate'}</button><button className="module-button" onClick={() => showUsage(coupon)} type="button">Usage</button><button className="module-button danger" onClick={() => remove(coupon)} type="button">Delete</button></div></td></tr>
+              return <tr key={id}><td>{value(coupon, 'imageStorageKey', 'ImageStorageKey') && <img alt="" className="module-image-thumbnail" src={getProductImageUrl(value(coupon, 'imageStorageKey', 'ImageStorageKey'))} />}<strong>{value(coupon, 'couponCode', 'CouponCode')}</strong><span className="muted">{value(coupon, 'description', 'Description')}</span></td><td><strong>{discount} off</strong><span className="muted">Min. ₹{value(coupon, 'minOrderAmount', 'MinOrderAmount', 0)}</span></td><td>{new Date(value(coupon, 'startDate', 'StartDate')).toLocaleDateString('en-IN')}<span className="muted">to {new Date(value(coupon, 'endDate', 'EndDate')).toLocaleDateString('en-IN')}</span></td><td>{value(coupon, 'usedCount', 'UsedCount', '—')} / {value(coupon, 'usageLimit', 'UsageLimit', '∞')}</td><td>{active ? 'Active' : 'Inactive'}</td><td><div className="module-row-actions"><button className="module-button" onClick={() => startEdit(coupon)} type="button">Edit</button><button className="module-button" onClick={() => toggleActive(coupon)} type="button">{active ? 'Pause' : 'Activate'}</button><button className="module-button" onClick={() => showUsage(coupon)} type="button">Usage</button><button className="module-button danger" onClick={() => remove(coupon)} type="button">Delete</button></div></td></tr>
             })}
           </tbody></table></div>}
         </section>
