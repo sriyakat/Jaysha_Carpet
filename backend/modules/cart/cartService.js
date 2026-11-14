@@ -44,6 +44,10 @@ const addToCart = async (cartData) => {
         throw badRequest("Valid ProductId is required.");
     }
 
+    if (cartData.ProductVariantId != null && !isPositiveInteger(cartData.ProductVariantId)) {
+        throw badRequest("Valid ProductVariantId is required.");
+    }
+
     if (
         (cartData.CustomerId == null && !/^[a-f0-9]{64}$/i.test(cartData.CartToken || ""))
         || (cartData.CustomerId != null && !isPositiveInteger(cartData.CustomerId))

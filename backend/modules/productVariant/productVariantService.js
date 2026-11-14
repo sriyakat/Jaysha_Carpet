@@ -41,6 +41,8 @@ const updateVariant = async (user, productVariantId, data) => {
         SizeLabel: data.SizeLabel,
         Price: data.Price,
         DiscountPrice: data.DiscountPrice ?? null,
+        UsdPrice: data.UsdPrice,
+        UsdDiscountPrice: data.UsdDiscountPrice ?? null,
         StockQuantity: data.StockQuantity,
         IsActive: data.IsActive ?? null
     });

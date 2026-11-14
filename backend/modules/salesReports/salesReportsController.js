@@ -170,6 +170,35 @@ const updateSettings = async (req, res) => {
     }
 };
 
+const trackAnalyticsEvent = async (req, res) => {
+    try {
+        const data = await service.trackAnalyticsEvent(req.body);
+        return res.status(201).json({
+            success: true,
+            message: "Analytics event recorded.",
+            data
+        });
+    } catch (error) {
+        return res.status(error.statusCode || 400).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
+const getAnalyticsSummary = async (req, res) => {
+    try {
+        const data = await service.getAnalyticsSummary(req.user, req.query);
+        return res.status(200).json({
+            success: true,
+            message: "Analytics summary fetched successfully.",
+            data
+        });
+    } catch (error) {
+        return handleError(res, error);
+    }
+};
+
 module.exports = {
     getSummary,
     getRevenueTrend,
@@ -177,5 +206,7 @@ module.exports = {
     getLowStockProducts,
     getPendingOrders,
     getRecentOrders,
-    updateSettings
+    updateSettings,
+    trackAnalyticsEvent,
+    getAnalyticsSummary
 };

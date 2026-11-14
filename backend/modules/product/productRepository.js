@@ -2,6 +2,23 @@
 const sql = require("mssql");
 const { poolPromise } = require("../../config/db.js");
 
+const attachUsdPrices = async (products) => {
+    if (!products.length) return products;
+
+    const pool = await poolPromise;
+    const result = await pool.request().query(`
+        SELECT ProductId, UsdPrice, UsdDiscountPrice
+        FROM dbo.Products
+        WHERE IsDeleted = 0;
+    `);
+    const pricesById = new Map(result.recordset.map((item) => [item.ProductId, item]));
+
+    return products.map((product) => ({
+        ...product,
+        ...(pricesById.get(product.ProductId ?? product.productId) || {})
+    }));
+};
+
 
 // 1. GET ALL PRODUCTS
 const getAllProducts = async () => {
@@ -12,7 +29,7 @@ const getAllProducts = async () => {
         .input("Action", sql.NVarChar(30), "GET_ALL")
         .execute("dbo.sp_ManageProducts");
 
-    return result.recordset;
+    return attachUsdPrices(result.recordset);
 };
 
 
@@ -26,8 +43,10 @@ const getProductById = async (productId) => {
         .input("ProductId", sql.Int, productId)
         .execute("dbo.sp_ManageProducts");
 
+    const products = await attachUsdPrices(result.recordsets[0] || []);
+
     return {
-        product: result.recordsets[0]?.[0] || null,
+        product: products[0] || null,
         images: result.recordsets[1] || []
     };
 };
@@ -37,8 +56,11 @@ const getProductById = async (productId) => {
 const addProduct = async (productData) => {
 
     const pool = await poolPromise;
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
 
-    const result = await pool.request()
+    try {
+        const result = await transaction.request()
 
         .input("Action", sql.NVarChar(30), "ADD")
 
@@ -67,7 +89,28 @@ const addProduct = async (productData) => {
 
         .execute("dbo.sp_ManageProducts");
 
-    return result.recordset[0];
+        const product = result.recordset[0];
+        const productId = Number(product?.ProductId);
+        if (!productId) {
+            throw new Error(product?.Message || "Product creation did not return a product ID.");
+        }
+
+        await transaction.request()
+            .input("ProductId", sql.Int, productId)
+            .input("UsdPrice", sql.Decimal(12, 2), productData.UsdPrice)
+            .input("UsdDiscountPrice", sql.Decimal(12, 2), productData.UsdDiscountPrice ?? null)
+            .query(`
+                UPDATE dbo.Products
+                SET UsdPrice = @UsdPrice, UsdDiscountPrice = @UsdDiscountPrice
+                WHERE ProductId = @ProductId;
+            `);
+
+        await transaction.commit();
+        return { ...product, UsdPrice: productData.UsdPrice, UsdDiscountPrice: productData.UsdDiscountPrice ?? null };
+    } catch (error) {
+        if (transaction._aborted !== true) await transaction.rollback();
+        throw error;
+    }
 };
 
 
@@ -75,8 +118,11 @@ const addProduct = async (productData) => {
 const updateProduct = async (productId, productData) => {
 
     const pool = await poolPromise;
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
 
-    const result = await pool.request()
+    try {
+        const result = await transaction.request()
 
         .input("Action", sql.NVarChar(30), "UPDATE")
         .input("ProductId", sql.Int, productId)
@@ -106,7 +152,27 @@ const updateProduct = async (productId, productData) => {
 
         .execute("dbo.sp_ManageProducts");
 
-    return result.recordset[0];
+        const product = result.recordset[0];
+        if (product?.Success === false || product?.Success === 0) {
+            throw new Error(product.Message || "Product could not be updated.");
+        }
+
+        await transaction.request()
+            .input("ProductId", sql.Int, productId)
+            .input("UsdPrice", sql.Decimal(12, 2), productData.UsdPrice)
+            .input("UsdDiscountPrice", sql.Decimal(12, 2), productData.UsdDiscountPrice ?? null)
+            .query(`
+                UPDATE dbo.Products
+                SET UsdPrice = @UsdPrice, UsdDiscountPrice = @UsdDiscountPrice
+                WHERE ProductId = @ProductId AND IsDeleted = 0;
+            `);
+
+        await transaction.commit();
+        return { ...product, UsdPrice: productData.UsdPrice, UsdDiscountPrice: productData.UsdDiscountPrice ?? null };
+    } catch (error) {
+        if (transaction._aborted !== true) await transaction.rollback();
+        throw error;
+    }
 };
 
 
@@ -149,7 +215,7 @@ const getProductsByCategory = async (categoryId) => {
         .input("CategoryId", sql.Int, categoryId)
         .execute("dbo.sp_ManageProducts");
 
-    return result.recordset;
+    return attachUsdPrices(result.recordset);
 };
 
 
@@ -162,7 +228,7 @@ const getFeaturedProducts = async () => {
         .input("Action", sql.NVarChar(30), "GET_FEATURED")
         .execute("dbo.sp_ManageProducts");
 
-    return result.recordset;
+    return attachUsdPrices(result.recordset);
 };
 
 

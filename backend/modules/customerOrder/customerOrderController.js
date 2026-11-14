@@ -19,12 +19,12 @@ const handleError = (res, error) => {
         );
 
     const isValidationError =
-        /required|invalid|must be|cannot exceed|cannot be cancelled|cannot be negative|empty|insufficient stock|unavailable/i.test(
+        /required|invalid|must be|cannot exceed|cannot be cancelled|cannot be negative|empty|insufficient stock|unavailable|price is not set|choose a size|pricing is incomplete/i.test(
             message
         ) ||
-        (error.number >= 50001 && error.number <= 50027);
+        (error.number >= 50001 && error.number <= 50033);
 
-    const statusCode = isNotFound ? 404 : isValidationError ? 400 : 500;
+    const statusCode = error.statusCode || (isNotFound ? 404 : isValidationError ? 400 : 500);
 
     return res.status(statusCode).json({
         success: false,

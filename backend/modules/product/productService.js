@@ -8,7 +8,17 @@ const validateProductData = (productData) => {
         error.statusCode = 400;
         throw error;
     };
-    const { CategoryId, ProductName, Slug, SKU, Price, DiscountPrice, StockQuantity } = productData;
+    const {
+        CategoryId,
+        ProductName,
+        Slug,
+        SKU,
+        Price,
+        DiscountPrice,
+        UsdPrice,
+        UsdDiscountPrice,
+        StockQuantity
+    } = productData;
     const normalizedSlug = typeof Slug === "string" ? Slug.trim() : Slug;
     const normalizedSku = typeof SKU === "string" ? SKU.trim() : SKU;
 
@@ -20,9 +30,14 @@ const validateProductData = (productData) => {
     }
     if (normalizedSku && (typeof normalizedSku !== "string" || normalizedSku.length > 60)) fail("SKU 60 अक्षरों से अधिक नहीं होना चाहिए।");
     if (!Number.isFinite(Number(Price)) || Number(Price) <= 0) fail("उत्पाद की कीमत शून्य से अधिक होनी चाहिए।");
+    if (!Number.isFinite(Number(UsdPrice)) || Number(UsdPrice) <= 0) fail("उत्पाद की USD कीमत शून्य से अधिक होनी चाहिए।");
     if (DiscountPrice !== null && DiscountPrice !== undefined && DiscountPrice !== ""
         && (!Number.isFinite(Number(DiscountPrice)) || Number(DiscountPrice) < 0 || Number(DiscountPrice) >= Number(Price))) {
         fail("छूट की कीमत शून्य या उससे अधिक और मूल कीमत से कम होनी चाहिए।");
+    }
+    if (UsdDiscountPrice !== null && UsdDiscountPrice !== undefined && UsdDiscountPrice !== ""
+        && (!Number.isFinite(Number(UsdDiscountPrice)) || Number(UsdDiscountPrice) < 0 || Number(UsdDiscountPrice) >= Number(UsdPrice))) {
+        fail("USD छूट की कीमत मूल USD कीमत से कम होनी चाहिए।");
     }
     if (!Number.isInteger(Number(StockQuantity)) || Number(StockQuantity) < 0) {
         fail("स्टॉक की मात्रा शून्य या उससे बड़ी पूर्ण संख्या होनी चाहिए।");

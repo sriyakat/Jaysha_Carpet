@@ -17,6 +17,7 @@ function AdminModuleLayout({ activeModule, title, user, onLogout, onNavigate, ch
   const [currentYear] = useState(() => new Date().getFullYear())
   const name = user?.fullName || user?.FullName || 'Jaysha Carpet admin'
   const email = user?.email || user?.Email || ''
+  const storefrontUrl = `${import.meta.env.BASE_URL}shop`
   const initials = name.split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
   const matches = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -94,6 +95,17 @@ function AdminModuleLayout({ activeModule, title, user, onLogout, onNavigate, ch
             <div className="breadcrumb"><span>Workspace</span><Icon name="arrow" size={13} /><strong>{title}</strong></div>
           </div>
           <div className="topbar-right">
+            {activeModule === 'dashboard' && (
+              <a
+                aria-label="Open storefront in a new tab"
+                className="admin-storefront-link"
+                href={storefrontUrl}
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                View store <span aria-hidden="true">↗</span>
+              </a>
+            )}
             <div className={`admin-global-search${searchOpen ? ' is-open' : ''}`}>
               <Icon name="search" size={17} />
               <input

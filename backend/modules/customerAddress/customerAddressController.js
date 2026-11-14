@@ -5,14 +5,15 @@ const service = require("../customerAddress/customerAddressService.js");
 const handleError = (res, error) => {
     console.error("Customer Address Error:", error);
 
-    const statusCode = error.message.includes("not found")
+    const statusCode = error.statusCode || (error.message.includes("not found")
         ? 404
         : error.message.includes("required") ||
           error.message.includes("valid") ||
           error.message.includes("cannot exceed") ||
-          error.message.includes("must be")
+          error.message.includes("must be") ||
+          error.message.includes("supported")
         ? 400
-        : 500;
+        : 500);
 
     return res.status(statusCode).json({
         success: false,

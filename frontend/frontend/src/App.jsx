@@ -25,7 +25,16 @@ import CouponsPage from './modules/coupon/pages/CouponsPage.jsx'
 import ReturnRequestsPage from './modules/returnRequest/pages/ReturnRequestsPage.jsx'
 import AdminCustomersPage from './modules/customer/pages/AdminCustomersPage.jsx'
 
+function getAppPathname() {
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, '')
+  const pathname = window.location.pathname
+  return basePath && (pathname === basePath || pathname.startsWith(`${basePath}/`))
+    ? pathname.slice(basePath.length) || '/'
+    : pathname
+}
+
 function App() {
+  const pathname = getAppPathname()
   const [session, setSession] = useState(() => {
     try {
       const savedSession = sessionStorage.getItem('admin-session')
@@ -43,10 +52,10 @@ function App() {
     }
   })
   const [authMode, setAuthMode] = useState(() =>
-    window.location.pathname === '/setup-admin' ? 'setup' : 'login',
+    pathname === '/setup-admin' ? 'setup' : 'login',
   )
   const [activeModule, setActiveModule] = useState(() =>
-    ['/admin/products', '/products'].includes(window.location.pathname)
+    ['/admin/products', '/products'].includes(pathname)
       ? 'products'
       : ({
         '/admin': 'dashboard',
@@ -70,20 +79,20 @@ function App() {
         '/admin/notifications': 'notifications',
         '/admin/product-videos': 'videos',
         '/admin/website-settings': 'settings',
-      }[window.location.pathname] || 'categories'),
+      }[pathname] || 'categories'),
   )
 
-  if (['/', '/shop', '/cart', '/checkout'].includes(window.location.pathname)) {
+  if (['/', '/shop', '/cart', '/checkout'].includes(pathname)) {
     return <ShopPage />
   }
 
-  if (window.location.pathname.startsWith('/policies/')) {
+  if (pathname.startsWith('/policies/')) {
     return <StorePoliciesPage />
   }
 
   if (
-    ['/customer/login', '/customer/register', '/customer/forgot-password'].includes(window.location.pathname)
-    || window.location.pathname.startsWith('/account')
+    ['/customer/login', '/customer/register', '/customer/forgot-password'].includes(pathname)
+    || pathname.startsWith('/account')
   ) {
     return <CustomerPage />
   }

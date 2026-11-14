@@ -1,5 +1,8 @@
 
 const repository = require("../customerOrder/customerOrderRepository.js");
+const addressRepository = require("../customerAddress/customerAddressRepository.js");
+const websiteSettingsRepository = require("../websiteSettings/websiteSettingsRepository.js");
+const { getCountryCode } = require("../internationalCommerce/market.js");
 
 const validateId = (value, fieldName) => {
     const id = Number(value);
@@ -43,15 +46,79 @@ const createOrder = async (customerId, data) => {
         throw new Error("CustomerNotes cannot exceed 500 characters.");
     }
 
-    // Shipping aur tax abhi server-side zero rakhe gaye hain.
-    // Client se bheje gaye totals/charges trust nahi karne hain.
+    const address = await addressRepository.getAddressById(customerId, addressId);
+    if (!address) {
+        const error = new Error("Delivery address not found.");
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const countryCode = getCountryCode(address.Country ?? address.country);
+    if (!countryCode) {
+        const error = new Error("Delivery is not configured for this country.");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    let currencyCode = "INR";
+    let inrPerUsd = null;
+    let shippingCharges = 0;
+    let shippingChargesUsd = null;
+    if (countryCode !== "IN") {
+        if (paymentMethod !== "ONLINE") {
+            const error = new Error("International orders require online card payment.");
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const settings = await websiteSettingsRepository.getWebsiteSettings();
+        inrPerUsd = Number(settings?.InrPerUsd);
+        if (!Number.isFinite(inrPerUsd) || inrPerUsd <= 0) {
+            const error = new Error("International checkout is not ready. Store currency settings are incomplete.");
+            error.statusCode = 503;
+            throw error;
+        }
+
+        let rates = {};
+        if (settings?.InternationalShippingRates) {
+            rates = typeof settings.InternationalShippingRates === "string"
+                ? JSON.parse(settings.InternationalShippingRates)
+                : settings.InternationalShippingRates;
+        }
+        const shippingRate = rates[countryCode];
+        if (!shippingRate || !Number.isFinite(Number(shippingRate.shippingUsd))) {
+            const error = new Error("Shipping is not yet configured for your delivery country.");
+            error.statusCode = 400;
+            throw error;
+        }
+
+        const requiredPolicies = [
+            settings.ShippingPolicy,
+            settings.ReturnPolicy,
+            settings.PrivacyPolicy,
+            settings.TermsAndConditions
+        ];
+        if (requiredPolicies.some((policy) => !String(policy || "").trim())) {
+            const error = new Error("International checkout is unavailable until store policies are published.");
+            error.statusCode = 503;
+            throw error;
+        }
+
+        currencyCode = "USD";
+        shippingChargesUsd = Number(shippingRate.shippingUsd);
+        shippingCharges = Math.round(Number(shippingRate.shippingUsd) * inrPerUsd * 100) / 100;
+    }
+
     return await repository.createOrder({
         CustomerId: customerId,
         AddressId: addressId,
         CartId: cartId,
         PaymentMethod: paymentMethod,
-        ShippingCharges: 0,
+        ShippingCharges: shippingCharges,
+        ShippingChargesUsd: shippingChargesUsd,
         TaxAmount: 0,
+        CurrencyCode: currencyCode,
+        InrPerUsd: inrPerUsd,
         CustomerNotes: data.CustomerNotes || null
     });
 };

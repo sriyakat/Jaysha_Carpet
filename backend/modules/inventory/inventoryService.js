@@ -1,5 +1,7 @@
 
 const inventoryRepository = require("./inventoryRepository.js");
+const salesReportsRepository = require("../salesReports/salesReportsRepository.js");
+const notificationRepository = require("../notifications/notificationsRepository.js");
 
 // ADMIN AUTHORIZATION
 const checkAdmin = (user) => {
@@ -164,11 +166,46 @@ const getTransactionById = async (transactionId, user) => {
     return transaction;
 };
 
+const sendLowStockAlerts = async (user, threshold = null) => {
+    checkAdmin(user);
+
+    if (threshold !== null && threshold !== undefined) {
+        threshold = Number(threshold);
+        if (!Number.isInteger(threshold) || threshold < 0) {
+            const error = new Error("Threshold must be zero or greater.");
+            error.statusCode = 400;
+            throw error;
+        }
+    } else {
+        threshold = null;
+    }
+
+    const products = await salesReportsRepository.getLowStockProducts(threshold);
+    let notificationCount = 0;
+
+    for (const product of products) {
+        const productName = product.ProductName || product.productName || `Product ${product.ProductId || ""}`;
+        const stock = product.StockQuantity ?? product.stockQuantity ?? 0;
+        await notificationRepository.createNotification({
+            CustomerId: null,
+            OrderId: null,
+            NotificationType: "LOW_STOCK",
+            Title: "Low-stock alert",
+            Message: `${productName} has only ${stock} units remaining.`,
+            RecipientEmail: null
+        });
+        notificationCount += 1;
+    }
+
+    return { productCount: products.length, notificationCount };
+};
+
 module.exports = {
     stockIn,
     stockOut,
     stockAdjustment,
     getTransactionsByProduct,
     getAllTransactions,
-    getTransactionById
+    getTransactionById,
+    sendLowStockAlerts
 };

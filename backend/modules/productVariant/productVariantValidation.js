@@ -44,6 +44,8 @@ const validateAddVariant = (req, res, next) => {
         SizeLabel,
         Price,
         DiscountPrice,
+        UsdPrice,
+        UsdDiscountPrice,
         StockQuantity,
         IsActive
     } = req.body;
@@ -83,6 +85,19 @@ const validateAddVariant = (req, res, next) => {
         return sendError(res, "DiscountPrice must be less than Price.");
     }
 
+    if (UsdPrice === undefined || UsdPrice === null || UsdPrice === "" || !Number.isFinite(Number(UsdPrice)) || Number(UsdPrice) <= 0) {
+        return sendError(res, "UsdPrice must be greater than zero.");
+    }
+
+    if (
+        UsdDiscountPrice !== undefined &&
+        UsdDiscountPrice !== null &&
+        UsdDiscountPrice !== "" &&
+        (!Number.isFinite(Number(UsdDiscountPrice)) || Number(UsdDiscountPrice) < 0 || Number(UsdDiscountPrice) >= Number(UsdPrice))
+    ) {
+        return sendError(res, "UsdDiscountPrice must be less than UsdPrice.");
+    }
+
     if (
         StockQuantity === undefined ||
         !Number.isInteger(Number(StockQuantity)) ||
@@ -110,6 +125,8 @@ const validateUpdateVariant = (req, res, next) => {
         SizeLabel,
         Price,
         DiscountPrice,
+        UsdPrice,
+        UsdDiscountPrice,
         StockQuantity,
         IsActive
     } = req.body;
@@ -143,6 +160,19 @@ const validateUpdateVariant = (req, res, next) => {
         )
     ) {
         return sendError(res, "DiscountPrice must be less than Price.");
+    }
+
+    if (UsdPrice === undefined || UsdPrice === null || UsdPrice === "" || !Number.isFinite(Number(UsdPrice)) || Number(UsdPrice) <= 0) {
+        return sendError(res, "UsdPrice must be greater than zero.");
+    }
+
+    if (
+        UsdDiscountPrice !== undefined &&
+        UsdDiscountPrice !== null &&
+        UsdDiscountPrice !== "" &&
+        (!Number.isFinite(Number(UsdDiscountPrice)) || Number(UsdDiscountPrice) < 0 || Number(UsdDiscountPrice) >= Number(UsdPrice))
+    ) {
+        return sendError(res, "UsdDiscountPrice must be less than UsdPrice.");
     }
 
     if (

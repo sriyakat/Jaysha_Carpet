@@ -14,6 +14,8 @@ const {
 
 const adminAuth = require("../customer/adminAuthMiddleware.js");
 
+router.post("/low-stock-alerts", adminAuth, inventoryController.sendLowStockAlerts);
+
 // STOCK IN
 router.post(
     "/stock-in",

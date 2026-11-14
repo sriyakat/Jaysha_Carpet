@@ -1,6 +1,7 @@
 // payment.service.js
 
 const paymentRepository = require("./paymentRepository.js");
+const orderRepository = require("../customerOrder/customerOrderRepository.js");
 
 // ADMIN CHECK
 const checkAdmin = (user) => {
@@ -54,10 +55,20 @@ const createPayment = async (paymentData, user) => {
         throw error;
     }
 
+    const orders = await orderRepository.getAllOrders();
+    const order = orders.find((item) => Number(item.OrderId ?? item.orderId) === OrderId);
+    if (!order) {
+        const error = new Error("Order not found.");
+        error.statusCode = 404;
+        throw error;
+    }
+
     return await paymentRepository.createPayment({
         OrderId,
         PaymentMethod,
-        Amount
+        Amount,
+        CurrencyCode: String(order.CurrencyCode || order.currencyCode || "INR").toUpperCase(),
+        InrPerUsd: order.InrPerUsd || order.inrPerUsd || null
     });
 };
 

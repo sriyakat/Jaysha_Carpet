@@ -11,6 +11,9 @@ const {
 
 const adminAuth = require("../customer/adminAuthMiddleware.js");
 
+router.post("/analytics/event", controller.trackAnalyticsEvent);
+router.get("/analytics/summary", adminAuth, controller.getAnalyticsSummary);
+
 // Dashboard Summary
 router.get(
     "/summary",

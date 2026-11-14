@@ -42,11 +42,13 @@ const updateWebsiteSettings = async (req, res) => {
         console.error("Update Website Settings Error:", error);
 
         const statusCode =
-            error.message.includes("Only admin") ? 403 :
+            error.statusCode ||
+            (error.message.includes("Only admin") ? 403 :
             error.message.includes("required") ||
             error.message.includes("Invalid") ||
+            error.message.includes("not supported") ||
             error.message.includes("cannot exceed") ||
-            error.message.includes("must be") ? 400 : 500;
+            error.message.includes("must be") ? 400 : 500);
 
         return res.status(statusCode).json({
             success: false,

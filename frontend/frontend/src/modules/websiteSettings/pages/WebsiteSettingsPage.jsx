@@ -117,10 +117,10 @@ function WebsiteSettingsPage({ user, onLogout, onNavigate }) {
           {loading ? <div className="module-state">Loading website settings…</div> : <form className="module-form settings-form" onSubmit={submit}>
             <div className="module-field wide"><span>Store logo (optional)</span><ImageUploadField file={logoFile} hint="JPEG, PNG, WebP ya GIF · Maximum 15 MB" id="storeLogo" label="Store logo" onClear={() => { setLogoFile(null); setLogoKey(''); setLogoRemoved(true) }} onFileChange={(file) => { setLogoFile(file); setLogoRemoved(false) }} value={logoKey} /></div>
             {fields.map(([key, label, type]) => <label className={`module-field${type === 'textarea' ? ' wide' : ''}`} key={key}>{label}{type === 'textarea'
-              ? <textarea className="module-textarea" maxLength={12000} onChange={(event) => setSettings({ ...settings, [key]: event.target.value })} value={settings[key] ?? ''} />
-              : <input className="module-input" onChange={(event) => setSettings({ ...settings, [key]: event.target.value })} type={type} value={settings[key] ?? ''} />}</label>)}
+              ? <textarea className="module-textarea" onChange={(event) => setSettings({ ...settings, [key]: event.target.value })} value={settings[key] ?? ''} />
+              : <input className="module-input" onChange={(event) => setSettings({ ...settings, [key]: event.target.value })} type={type === 'email' || type === 'url' ? 'text' : type} value={settings[key] ?? ''} />}</label>)}
             <label className="module-field wide">INR per 1 USD
-              <input className="module-input" min="0.000001" onChange={(event) => setInrPerUsd(event.target.value)} step="0.000001" type="number" value={inrPerUsd} />
+              <input className="module-input" onChange={(event) => setInrPerUsd(event.target.value)} step="any" type="number" value={inrPerUsd} />
               <small>Set and update this rate yourself. International prices and card charges stay disabled until it is configured.</small>
             </label>
             <div className="module-field wide">
@@ -133,13 +133,13 @@ function WebsiteSettingsPage({ user, onLogout, onNavigate }) {
                     <div className="market-shipping-rate-row" key={country.code}>
                       <strong>{country.name}</strong>
                       <label>{country.code} shipping (USD)
-                        <input className="module-input" min="0" onChange={(event) => setShippingRates((current) => ({
+                        <input className="module-input" onChange={(event) => setShippingRates((current) => ({
                           ...current,
                           [country.code]: { ...current[country.code], shippingUsd: event.target.value === '' ? '' : Number(event.target.value) },
-                        }))} step="0.01" type="number" value={rate.shippingUsd ?? ''} />
+                        }))} step="any" type="number" value={rate.shippingUsd ?? ''} />
                       </label>
                       <label>Delivery estimate
-                        <input className="module-input" maxLength={80} onChange={(event) => setShippingRates((current) => ({
+                        <input className="module-input" onChange={(event) => setShippingRates((current) => ({
                           ...current,
                           [country.code]: { ...current[country.code], deliveryEstimate: event.target.value },
                         }))} placeholder="e.g. 7–14 business days" value={rate.deliveryEstimate ?? ''} />

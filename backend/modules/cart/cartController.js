@@ -131,9 +131,12 @@ const addToCart = async (req, res) => {
     try {
         const cartId = getPositiveId(req.params.cartId);
         const productId = getPositiveId(req.body?.ProductId);
+        const productVariantId = req.body?.ProductVariantId == null
+            ? null
+            : getPositiveId(req.body.ProductVariantId);
         const quantity = Number(req.body?.Quantity ?? 1);
 
-        if (!cartId || !productId) {
+        if (!cartId || !productId || (req.body?.ProductVariantId != null && !productVariantId)) {
             throw createError("Valid CartId and ProductId are required.", 400);
         }
 
@@ -145,6 +148,7 @@ const addToCart = async (req, res) => {
             CartId: cartId,
             ...getCartAccess(req),
             ProductId: productId,
+            ProductVariantId: productVariantId,
             Quantity: quantity
         };
 

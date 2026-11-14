@@ -88,19 +88,43 @@ const getOwnedOnlineOrder = async (customerId, orderId) => {
 };
 
 const getOrderAmount = (order) => {
-    const amount = Number(getProperty(order, "GrandTotal", "grandTotal", "TotalAmount", "totalAmount"));
+    const amountInr = Number(getProperty(order, "GrandTotal", "grandTotal", "TotalAmount", "totalAmount"));
+    const currencyCode = String(getProperty(order, "CurrencyCode", "currencyCode") || "INR").toUpperCase();
+    const inrPerUsd = Number(getProperty(order, "InrPerUsd", "inrPerUsd"));
 
-    if (!Number.isFinite(amount) || amount <= 0) {
+    if (!Number.isFinite(amountInr) || amountInr <= 0) {
         const error = new Error("The order has an invalid total and cannot be paid online.");
         error.statusCode = 400;
         throw error;
     }
 
-    return Math.round(amount * 100);
+    if (currencyCode === "USD") {
+        const usdGrandTotal = Number(getProperty(order, "UsdGrandTotal", "usdGrandTotal"));
+        if (Number.isFinite(usdGrandTotal) && usdGrandTotal > 0) {
+            return Math.round(usdGrandTotal * 100);
+        }
+        if (!Number.isFinite(inrPerUsd) || inrPerUsd <= 0) {
+            const error = new Error("The order is missing its USD exchange-rate snapshot.");
+            error.statusCode = 409;
+            throw error;
+        }
+        return Math.round((amountInr / inrPerUsd) * 100);
+    }
+    if (currencyCode !== "INR") {
+        const error = new Error("This order uses an unsupported payment currency.");
+        error.statusCode = 400;
+        throw error;
+    }
+    return Math.round(amountInr * 100);
 };
 
 const getConfig = () => ({
     enabled: Boolean(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET),
+    internationalEnabled: Boolean(
+        process.env.RAZORPAY_KEY_ID
+        && process.env.RAZORPAY_KEY_SECRET
+        && process.env.RAZORPAY_USD_ENABLED === "true"
+    ),
     keyId: process.env.RAZORPAY_KEY_ID || null
 });
 
@@ -109,6 +133,12 @@ const createRazorpayOrder = async (customerId, rawOrderId) => {
     const orderId = validateId(rawOrderId, "OrderId");
     const { keyId, keySecret } = getCredentials();
     const { order } = await getOwnedOnlineOrder(customerId, orderId);
+    const currency = String(getProperty(order, "CurrencyCode", "currencyCode") || "INR").toUpperCase();
+    if (currency === "USD" && !getConfig().internationalEnabled) {
+        const error = new Error("International card payments are not enabled for this store.");
+        error.statusCode = 503;
+        throw error;
+    }
 
     const paymentStatus = String(getProperty(order, "PaymentStatus", "paymentStatus") || "").toUpperCase();
     const existingPayments = await paymentRepository.getPaymentsByOrder(orderId);
@@ -152,18 +182,25 @@ const createRazorpayOrder = async (customerId, rawOrderId) => {
             GatewayName: "Razorpay",
             GatewayOrderId: getProperty(pendingPayment, "GatewayOrderId", "gatewayOrderId")
         });
+        await paymentRepository.setCurrency({
+            PaymentId: pendingPayment.PaymentId,
+            CurrencyCode: currency,
+            InrPerUsd: getProperty(order, "InrPerUsd", "inrPerUsd") || null
+        });
         return {
             keyId,
             orderId: getProperty(pendingPayment, "GatewayOrderId", "gatewayOrderId"),
             amount,
-            currency: "INR"
+            currency
         };
     }
 
     const payment = pendingPayment || await paymentRepository.createPayment({
         OrderId: orderId,
         PaymentMethod: "ONLINE",
-        Amount: amount / 100
+        Amount: amount / 100,
+        CurrencyCode: currency,
+        InrPerUsd: getProperty(order, "InrPerUsd", "inrPerUsd") || null
     });
 
     if (!payment?.PaymentId) {
@@ -172,7 +209,7 @@ const createRazorpayOrder = async (customerId, rawOrderId) => {
 
     const gatewayOrder = await gatewayRequest("/orders", "POST", keyId, keySecret, {
         amount,
-        currency: "INR",
+        currency,
         receipt: `jaysha-${orderId}-${Date.now()}`,
         notes: { orderId: String(orderId) }
     });
@@ -187,7 +224,7 @@ const createRazorpayOrder = async (customerId, rawOrderId) => {
         keyId,
         orderId: gatewayOrder.id,
         amount,
-        currency: "INR"
+        currency
     };
 };
 
@@ -207,6 +244,12 @@ const verifyRazorpayPayment = async (customerId, rawOrderId, details) => {
 
     const { keyId, keySecret } = getCredentials();
     const { order } = await getOwnedOnlineOrder(customerId, orderId);
+    const currency = String(getProperty(order, "CurrencyCode", "currencyCode") || "INR").toUpperCase();
+    if (currency === "USD" && !getConfig().internationalEnabled) {
+        const error = new Error("International card payments are not enabled for this store.");
+        error.statusCode = 503;
+        throw error;
+    }
     const payments = await paymentRepository.getPaymentsByOrder(orderId);
     const payment = payments.find((item) =>
         String(getProperty(item, "GatewayName", "gatewayName") || "").toLowerCase() === "razorpay"
@@ -245,7 +288,7 @@ const verifyRazorpayPayment = async (customerId, rawOrderId, details) => {
     if (
         providerPayment.order_id === razorpayOrderId
         && Number(providerPayment.amount) === expectedAmount
-        && providerPayment.currency === "INR"
+        && providerPayment.currency === currency
         && providerPayment.status === "authorized"
     ) {
         providerPayment = await gatewayRequest(
@@ -253,14 +296,14 @@ const verifyRazorpayPayment = async (customerId, rawOrderId, details) => {
             "POST",
             keyId,
             keySecret,
-            { amount: expectedAmount, currency: "INR" },
+            { amount: expectedAmount, currency },
         );
     }
 
     if (
         providerPayment.order_id !== razorpayOrderId
         || Number(providerPayment.amount) !== expectedAmount
-        || providerPayment.currency !== "INR"
+        || providerPayment.currency !== currency
         || providerPayment.status !== "captured"
     ) {
         const error = new Error("Razorpay has not confirmed a captured payment for this order.");

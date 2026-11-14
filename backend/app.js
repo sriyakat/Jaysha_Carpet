@@ -3,7 +3,6 @@ const cors = require('cors');
 const path = require('node:path');
 const fs = require('node:fs');
 
-
 const categoryRoutes = require('../backend/modules/category/categoryRoutes.js');
 const authRoutes = require('../backend/modules/auth/authRoutes.js');
 const productRoutes = require("../backend/modules/product/productRoutes.js");
@@ -31,6 +30,9 @@ const homepageOfferRoutes = require("./modules/homepageShowcase/homepageOfferRou
 const homepageNewArrivalsRoutes = require("./modules/homepageNewArrivals/homepageNewArrivalsRoutes.js");
 const customOrderRoutes = require("./modules/customOrders/customOrdersRoutes.js");
 const blogPostRoutes = require("./modules/blogPosts/blogPostsRoutes.js");
+const seoController = require("./modules/seo/seoController.js");
+const { publicCache } = require("./utils/publicCache.js");
+
 
 
 const app = express();
@@ -43,6 +45,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+
 app.get('/api/health', (req, res) => {
     res.status(200).json({
         success: true,
@@ -50,10 +53,13 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+app.get('/robots.txt', publicCache(300), seoController.getRobots);
+app.get('/sitemap.xml', publicCache(300), seoController.getSitemap);
 
-app.use('/api/categories', categoryRoutes);
+
+app.use('/api/categories', publicCache(60), categoryRoutes);
 app.use('/api/auth', authRoutes);
-app.use("/api/products", productRoutes);
+app.use("/api/products", publicCache(30), productRoutes);
 app.use("/api/product-images", productImageRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/customers", customerRoutes);
@@ -66,7 +72,7 @@ app.use("/api/reviews", reviewRoutes);
 app.use("/api/product-variants", productVariantRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/product-videos", productVideoRoutes);
-app.use("/api/website-settings", websiteSettingsRoutes);
+app.use("/api/website-settings", publicCache(60), websiteSettingsRoutes);
 app.use("/api/return-requests", returnRequestRoutes);
 app.use("/api/homepage-banners", homepageBannerRoutes);
 app.use("/api/sales-reports", salesReportRoutes);
@@ -82,9 +88,12 @@ app.use("/api/blog-posts", blogPostRoutes);
 
 const frontendDistPath = path.join(__dirname, '..', 'frontend', 'frontend', 'dist');
 const frontendIndexHtml = fs.readFileSync(path.join(frontendDistPath, 'index.html'), 'utf8');
+
 app.get('/', (req, res) => {
     res.type('html').send(frontendIndexHtml);
 });
+
+
 app.get([
     '/shop',
     '/cart',
@@ -99,6 +108,8 @@ app.get([
 ], (req, res) => {
     res.type('html').send(frontendIndexHtml);
 });
+
+
 app.use(express.static(frontendDistPath));
 app.use((req, res, next) => {
     if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) {

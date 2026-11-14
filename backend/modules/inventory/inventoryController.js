@@ -132,11 +132,28 @@ const getTransactionById = async (req, res) => {
     }
 };
 
+const sendLowStockAlerts = async (req, res) => {
+    try {
+        const result = await inventoryService.sendLowStockAlerts(
+            req.user,
+            req.body?.threshold
+        );
+        return res.status(200).json({
+            success: true,
+            message: "Low-stock alerts created successfully.",
+            data: result
+        });
+    } catch (error) {
+        return handleError(res, error);
+    }
+};
+
 module.exports = {
     stockIn,
     stockOut,
     stockAdjustment,
     getTransactionsByProduct,
     getAllTransactions,
-    getTransactionById
+    getTransactionById,
+    sendLowStockAlerts
 };

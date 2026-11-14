@@ -45,6 +45,45 @@ const validateTopCount = (value) => {
     return count;
 };
 
+const trackAnalyticsEvent = async (data = {}) => {
+    const allowed = ["PAGE_VIEW", "PRODUCT_VIEW", "CART_VIEW", "CHECKOUT_STARTED", "ORDER_COMPLETED"];
+    const eventType = String(data.eventType || "").toUpperCase();
+    if (!allowed.includes(eventType)) {
+        const error = new Error("Invalid analytics event type.");
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const productId = data.productId ? Number(data.productId) : null;
+    const orderId = data.orderId ? Number(data.orderId) : null;
+    const eventValue = data.eventValue === undefined ? null : Number(data.eventValue);
+    if (productId !== null && (!Number.isInteger(productId) || productId <= 0)) {
+        throw Object.assign(new Error("Invalid productId."), { statusCode: 400 });
+    }
+    if (orderId !== null && (!Number.isInteger(orderId) || orderId <= 0)) {
+        throw Object.assign(new Error("Invalid orderId."), { statusCode: 400 });
+    }
+    if (eventValue !== null && (!Number.isFinite(eventValue) || eventValue < 0)) {
+        throw Object.assign(new Error("Invalid eventValue."), { statusCode: 400 });
+    }
+
+    return repository.trackAnalyticsEvent({
+        eventType,
+        productId,
+        sessionKey: String(data.sessionKey || "").slice(0, 100) || null,
+        customerId: data.customerId ? Number(data.customerId) : null,
+        orderId,
+        eventValue,
+        metadata: data.metadata ? JSON.stringify(data.metadata).slice(0, 4000) : null
+    });
+};
+
+const getAnalyticsSummary = async (user, filters) => {
+    checkAdmin(user);
+    validateDateFilters(filters);
+    return repository.getAnalyticsSummary(filters);
+};
+
 // 1. Dashboard Summary
 const getSummary = async (user, filters) => {
     checkAdmin(user);
@@ -125,5 +164,7 @@ module.exports = {
     getLowStockProducts,
     getPendingOrders,
     getRecentOrders,
-    updateSettings
+    updateSettings,
+    trackAnalyticsEvent,
+    getAnalyticsSummary
 };

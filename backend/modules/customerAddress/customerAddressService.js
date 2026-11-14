@@ -1,5 +1,6 @@
 
 const repository = require("../customerAddress/customerAddressRepository.js");
+const { getCountryCode } = require("../internationalCommerce/market.js");
 
 // Common ID validation
 const validateId = (id, fieldName) => {
@@ -52,6 +53,10 @@ const validateAddress = (data) => {
 
     if (data.Country.length > 100)
         throw new Error("Country cannot exceed 100 characters.");
+
+    if (!getCountryCode(data.Country)) {
+        throw new Error("This delivery country is not currently supported.");
+    }
 
     if (data.Pincode.length > 15)
         throw new Error("Pincode cannot exceed 15 characters.");
