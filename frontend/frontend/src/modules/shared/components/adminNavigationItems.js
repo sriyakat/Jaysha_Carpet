@@ -37,7 +37,6 @@ export const adminNavigationGroups = [
     label: 'Engagement & insights',
     items: [
       ['reviews', 'Reviews', 'sparkle'],
-      ['wishlist', 'Wishlist', 'sparkle', null, false],
       ['notifications', 'Notifications', 'sparkle'],
       ['reports', 'Sales reports', 'grid'],
     ],

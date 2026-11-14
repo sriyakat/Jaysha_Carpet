@@ -10,11 +10,24 @@ function orderValue(order, camelName, pascalName, fallback = '') {
   return order?.[camelName] ?? order?.[pascalName] ?? fallback
 }
 
-function formatPrice(value) {
+function formatPrice(value, order = null, directUsdAmount = null) {
   const amount = Number(value)
-  return Number.isFinite(amount)
-    ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(amount)
-    : '—'
+  if (!Number.isFinite(amount)) return '—'
+  const currency = orderValue(order, 'currencyCode', 'CurrencyCode', 'INR')
+  const rate = Number(orderValue(order, 'inrPerUsd', 'InrPerUsd', 0))
+  const usdAmount = directUsdAmount === null || directUsdAmount === undefined || directUsdAmount === ''
+    ? Number.NaN
+    : Number(directUsdAmount)
+  const displayAmount = currency === 'USD'
+    ? Number.isFinite(usdAmount) && usdAmount >= 0
+      ? usdAmount
+      : rate > 0 ? amount / rate : amount
+    : amount
+  return new Intl.NumberFormat(currency === 'USD' ? 'en-US' : 'en-IN', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: currency === 'USD' ? 2 : 2,
+  }).format(displayAmount)
 }
 
 function formatDate(value) {
@@ -156,7 +169,7 @@ function OrdersPage({ user, onLogout, onNavigate }) {
           <div className="overview-grid">
             <article className="overview-card"><span className="overview-icon"><Icon name="box" size={20} /></span><div><p className="overview-label">Total orders</p><p className="overview-value">{loading ? '—' : orders.length}</p></div></article>
             <article className="overview-card"><span className="overview-icon"><Icon name="sparkle" size={20} /></span><div><p className="overview-label">Needs attention</p><p className="overview-value">{loading ? '—' : pendingCount}</p></div></article>
-            <article className="overview-card"><span className="overview-icon"><Icon name="category" size={20} /></span><div><p className="overview-label">Order value</p><p className="overview-value orders-revenue">{loading ? '—' : formatPrice(totalRevenue)}</p></div></article>
+            <article className="overview-card"><span className="overview-icon"><Icon name="category" size={20} /></span><div><p className="overview-label">Order value (INR base)</p><p className="overview-value orders-revenue">{loading ? '—' : formatPrice(totalRevenue)}</p></div></article>
           </div>
 
           <section aria-label="Customer orders" className="table-card">
@@ -190,7 +203,7 @@ function OrdersPage({ user, onLogout, onNavigate }) {
                           <td><strong>{orderValue(order, 'orderNumber', 'OrderNumber', `#${id ?? '—'}`)}</strong></td>
                           <td><span className="orders-customer">{orderValue(order, 'customerName', 'CustomerName', 'Customer')}</span><span className="orders-contact">{orderValue(order, 'mobileNumber', 'MobileNumber')}</span></td>
                           <td>{formatDate(orderValue(order, 'createdAt', 'CreatedAt'))}</td>
-                          <td><strong>{formatPrice(orderValue(order, 'grandTotal', 'GrandTotal'))}</strong></td>
+                          <td><strong>{formatPrice(orderValue(order, 'grandTotal', 'GrandTotal'), order, orderValue(order, 'usdGrandTotal', 'UsdGrandTotal', null))}</strong></td>
                           <td><span>{orderValue(order, 'paymentMethod', 'PaymentMethod', '—')}</span><span className="orders-contact">{orderValue(order, 'paymentStatus', 'PaymentStatus')}</span></td>
                           <td>
                             {status === 'CANCELLED' ? <span className="orders-status cancelled">{status}</span> : (
@@ -233,14 +246,14 @@ function OrdersPage({ user, onLogout, onNavigate }) {
                         const quantity = Number(orderValue(item, 'quantity', 'Quantity', 0))
                         const price = orderValue(item, 'unitPrice', 'UnitPrice', 0)
                         const lineTotal = orderValue(item, 'lineTotal', 'LineTotal', Number(price) * quantity)
-                        return <article className="orders-item-row" key={itemId}><div><strong>{name}</strong><p>{orderValue(item, 'sku', 'SKU') ? `SKU: ${orderValue(item, 'sku', 'SKU')} · ` : ''}Qty: {quantity}</p></div><div className="orders-item-price"><span>{formatPrice(price)} each</span><strong>{formatPrice(lineTotal)}</strong></div></article>
+                        return <article className="orders-item-row" key={itemId}><div><strong>{name}</strong><p>{orderValue(item, 'sku', 'SKU') ? `SKU: ${orderValue(item, 'sku', 'SKU')} · ` : ''}Qty: {quantity}</p></div><div className="orders-item-price"><span>{formatPrice(price, selectedOrder, orderValue(item, 'usdUnitPrice', 'UsdUnitPrice', null))} each</span><strong>{formatPrice(lineTotal, selectedOrder, orderValue(item, 'usdLineTotal', 'UsdLineTotal', null))}</strong></div></article>
                       })}</div>}
               </section>
               <section className="orders-summary">
-                <div><span>Subtotal</span><strong>{formatPrice(orderValue(selectedOrder, 'subtotal', 'Subtotal'))}</strong></div>
-                <div><span>Discount</span><strong>−{formatPrice(orderValue(selectedOrder, 'discountAmount', 'DiscountAmount', 0))}</strong></div>
-                <div><span>Shipping</span><strong>{formatPrice(orderValue(selectedOrder, 'shippingCharges', 'ShippingCharges', 0))}</strong></div>
-                <div className="orders-grand-total"><span>Total</span><strong>{formatPrice(orderValue(selectedOrder, 'grandTotal', 'GrandTotal'))}</strong></div>
+                <div><span>Subtotal</span><strong>{formatPrice(orderValue(selectedOrder, 'subtotal', 'Subtotal'), selectedOrder, orderValue(selectedOrder, 'usdSubtotal', 'UsdSubtotal', null))}</strong></div>
+                <div><span>Discount</span><strong>−{formatPrice(orderValue(selectedOrder, 'discountAmount', 'DiscountAmount', 0), selectedOrder)}</strong></div>
+                <div><span>Shipping</span><strong>{formatPrice(orderValue(selectedOrder, 'shippingCharges', 'ShippingCharges', 0), selectedOrder, orderValue(selectedOrder, 'usdShippingCharges', 'UsdShippingCharges', null))}</strong></div>
+                <div className="orders-grand-total"><span>Total</span><strong>{formatPrice(orderValue(selectedOrder, 'grandTotal', 'GrandTotal'), selectedOrder, orderValue(selectedOrder, 'usdGrandTotal', 'UsdGrandTotal', null))}</strong></div>
                 <div><span>Payment</span><strong>{orderValue(selectedOrder, 'paymentMethod', 'PaymentMethod', '—')} · {orderValue(selectedOrder, 'paymentStatus', 'PaymentStatus', '—')}</strong></div>
                 {orderValue(selectedOrder, 'trackingNumber', 'TrackingNumber') && <div><span>Tracking</span><strong>{orderValue(selectedOrder, 'trackingNumber', 'TrackingNumber')}</strong></div>}
                 {orderValue(selectedOrder, 'customerNotes', 'CustomerNotes') && <div><span>Delivery note</span><strong>{orderValue(selectedOrder, 'customerNotes', 'CustomerNotes')}</strong></div>}

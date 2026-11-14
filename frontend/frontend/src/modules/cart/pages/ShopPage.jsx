@@ -40,6 +40,16 @@ import {
   saveCustomerCart,
   updateCustomerCartItem,
 } from '../api/cartApi.js'
+import {
+  defaultCurrencyForCountry,
+  formatMarketPrice,
+  getCountryCode,
+  MARKET_COUNTRIES,
+  MARKET_PREFERENCE_EVENT,
+  readMarketPreference,
+  saveMarketPreference,
+} from '../market.js'
+import './InternationalStorefront.css'
 
 function value(item, camelName, pascalName, fallback = '') {
   return item?.[camelName] ?? item?.[pascalName] ?? fallback
@@ -62,18 +72,43 @@ function imageKey(product) {
     || value(product, 'storageKey', 'StorageKey')
 }
 
-function getPrice(product) {
-  const discount = Number(value(product, 'discountPrice', 'DiscountPrice', 0))
-  const regular = Number(value(product, 'price', 'Price', 0))
+function getListPrice(product, currencyCode = 'INR') {
+  return Number(currencyCode === 'USD'
+    ? value(product, 'usdPrice', 'UsdPrice', 0)
+    : value(product, 'price', 'Price', 0))
+}
+
+function getPrice(product, currencyCode = 'INR') {
+  const discount = Number(currencyCode === 'USD'
+    ? value(product, 'usdDiscountPrice', 'UsdDiscountPrice', 0)
+    : value(product, 'discountPrice', 'DiscountPrice', 0))
+  const regular = getListPrice(product, currencyCode)
   return discount > 0 && discount < regular ? discount : regular
 }
 
-function getDiscountPercent(product) {
-  const regular = Number(value(product, 'price', 'Price', 0))
-  const discount = Number(value(product, 'discountPrice', 'DiscountPrice', 0))
+function hasMarketPrice(product, currencyCode = 'INR') {
+  const price = getListPrice(product, currencyCode)
+  return Number.isFinite(price) && price > 0
+}
+
+function getDiscountPercent(product, currencyCode = 'INR') {
+  const regular = getListPrice(product, currencyCode)
+  const discount = Number(currencyCode === 'USD'
+    ? value(product, 'usdDiscountPrice', 'UsdDiscountPrice', 0)
+    : value(product, 'discountPrice', 'DiscountPrice', 0))
   return discount > 0 && discount < regular
     ? Math.round(((regular - discount) / regular) * 100)
     : 0
+}
+
+function formatCurrencyAmount(amount, currencyCode) {
+  const value = Number(amount)
+  if (!Number.isFinite(value)) return '—'
+  return new Intl.NumberFormat(currencyCode === 'USD' ? 'en-US' : 'en-IN', {
+    style: 'currency',
+    currency: currencyCode,
+    maximumFractionDigits: currencyCode === 'INR' ? 0 : 2,
+  }).format(value)
 }
 
 function variantId(variant) {
@@ -83,14 +118,6 @@ function variantId(variant) {
 function isVariantActive(variant) {
   const active = value(variant, 'isActive', 'IsActive', true)
   return active === true || active === 1 || active === '1' || active === 'true'
-}
-
-function money(amount) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(Number(amount) || 0)
 }
 
 function safeBannerUrl(candidate) {
@@ -266,6 +293,8 @@ function fallbackProductArtwork(product, index) {
 
 function ShopPage() {
   const productCarouselRefs = useRef({})
+  const [market, setMarket] = useState(readMarketPreference)
+  const [storeCommerceSettings, setStoreCommerceSettings] = useState({})
   const [customerSession, setCustomerSession] = useState(readCustomerSession)
   const [customOrderForm, setCustomOrderForm] = useState(() => {
     const customer = readCustomerSession()?.customer || {}
@@ -302,8 +331,6 @@ function ShopPage() {
   const [search, setSearch] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All rugs')
   const [sortOrder, setSortOrder] = useState('featured')
-  const [wishlistIds, setWishlistIds] = useState([])
-  const [wishlistOnly, setWishlistOnly] = useState(false)
   const [activeHeroSlide, setActiveHeroSlide] = useState(0)
   const heroVideoRef = useRef(null)
   const [homepageBanners, setHomepageBanners] = useState([])
@@ -341,7 +368,11 @@ function ShopPage() {
   const [activeCoupons, setActiveCoupons] = useState([])
   const [couponError, setCouponError] = useState('')
   const [validatingCoupon, setValidatingCoupon] = useState(false)
-  const [razorpayConfig, setRazorpayConfig] = useState({ enabled: false, keyId: null })
+  const [razorpayConfig, setRazorpayConfig] = useState({
+    enabled: false,
+    internationalEnabled: false,
+    keyId: null,
+  })
   const [pendingOnlineOrderId, setPendingOnlineOrderId] = useState(
     () => sessionStorage.getItem(PENDING_ONLINE_ORDER_KEY) || '',
   )
@@ -359,6 +390,14 @@ function ShopPage() {
     return () => {
       window.history.scrollRestoration = previousScrollRestoration
     }
+  }, [])
+
+  useEffect(() => {
+    const handleMarketChange = (event) => {
+      setMarket(event.detail || readMarketPreference())
+    }
+    window.addEventListener(MARKET_PREFERENCE_EVENT, handleMarketChange)
+    return () => window.removeEventListener(MARKET_PREFERENCE_EVENT, handleMarketChange)
   }, [])
 
   useEffect(() => () => {
@@ -510,9 +549,36 @@ function ShopPage() {
 
   useEffect(() => {
     let active = true
+    const existingSessionKey = sessionStorage.getItem('analytics-session')
+    const sessionKey = existingSessionKey || crypto.randomUUID()
+    sessionStorage.setItem('analytics-session', sessionKey)
+    fetch('/api/sales-reports/analytics/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ eventType: 'PAGE_VIEW', sessionKey })
+    }).catch(() => {})
+
     getPublicWebsiteSettings()
       .then((settings) => {
-        if (active) setStoreContact(settings)
+        if (active) {
+          setStoreContact(settings)
+          setStoreCommerceSettings(settings)
+          document.title = settings.MetaTitle || settings.ShopName || 'Jaysha Carpet'
+          let description = document.querySelector('meta[name="description"]')
+          if (!description) {
+            description = document.createElement('meta')
+            description.setAttribute('name', 'description')
+            document.head.appendChild(description)
+          }
+          description.setAttribute('content', settings.MetaDescription || 'Discover thoughtfully woven carpets and rugs by Jaysha Carpet.')
+          let robots = document.querySelector('meta[name="robots"]')
+          if (!robots) {
+            robots = document.createElement('meta')
+            robots.setAttribute('name', 'robots')
+            document.head.appendChild(robots)
+          }
+          robots.setAttribute('content', settings.RobotsIndex === false ? 'noindex, nofollow' : 'index, follow')
+        }
       })
       .catch((error) => {
         console.error('Unable to load storefront contact details:', error)
@@ -684,7 +750,8 @@ function ShopPage() {
       setCheckoutView(window.location.pathname === '/checkout')
       if (window.location.pathname === '/checkout') setLoadingCheckoutAddresses(true)
       setCheckoutError('')
-      setCustomerSession(readCustomerSession())
+      const session = readCustomerSession()
+      setCustomerSession(session)
     }
 
     window.addEventListener('popstate', handlePopState)
@@ -744,17 +811,16 @@ function ShopPage() {
         const addresses = addressesResult.value
         setCheckoutAddresses(addresses)
         const defaultAddress = addresses.find((address) =>
-          Boolean(value(address, 'isDefault', 'IsDefault', false)))
-        setSelectedAddressId(String(
-          value(defaultAddress, 'addressId', 'AddressId', value(addresses[0], 'addressId', 'AddressId', '')),
-        ))
+          Boolean(value(address, 'isDefault', 'IsDefault', false))) || addresses[0]
+        setSelectedAddressId(String(value(defaultAddress, 'addressId', 'AddressId', '')))
+        setPaymentMethod(getCountryCode(value(defaultAddress, 'country', 'Country')) === 'IN' ? 'COD' : 'card')
       } else {
         setCheckoutError(addressesResult.reason.message)
       }
       if (configResult.status === 'fulfilled') {
         setRazorpayConfig(configResult.value)
       } else {
-        setRazorpayConfig({ enabled: false, keyId: null })
+        setRazorpayConfig({ enabled: false, internationalEnabled: false, keyId: null })
       }
     }).finally(() => {
       if (active) setLoadingCheckoutAddresses(false)
@@ -882,21 +948,21 @@ function ShopPage() {
         value(product, 'color', 'Color'),
         value(product, 'size', 'Size'),
       ].join(' ').toLowerCase()
-      const id = String(productId(product))
       return searchable.includes(query)
         && (selectedCategory === 'All rugs' || category === selectedCategory)
-        && (!wishlistOnly || wishlistIds.includes(id))
     })
     return filteredProducts.sort((first, second) => {
-      if (sortOrder === 'price-low') return getPrice(first) - getPrice(second)
-      if (sortOrder === 'price-high') return getPrice(second) - getPrice(first)
+      const firstPrice = hasMarketPrice(first, market.currencyCode) ? getPrice(first, market.currencyCode) : Number.POSITIVE_INFINITY
+      const secondPrice = hasMarketPrice(second, market.currencyCode) ? getPrice(second, market.currencyCode) : Number.POSITIVE_INFINITY
+      if (sortOrder === 'price-low') return firstPrice - secondPrice
+      if (sortOrder === 'price-high') return secondPrice - firstPrice
       if (sortOrder === 'name') {
         return value(first, 'productName', 'ProductName').localeCompare(value(second, 'productName', 'ProductName'))
       }
-      return (Number(getDiscountPercent(second) > 0) - Number(getDiscountPercent(first) > 0))
+      return (Number(getDiscountPercent(second, market.currencyCode) > 0) - Number(getDiscountPercent(first, market.currencyCode) > 0))
         || Number(value(second, 'isFeatured', 'IsFeatured', false)) - Number(value(first, 'isFeatured', 'IsFeatured', false))
     })
-  }, [products, search, selectedCategory, sortOrder, wishlistOnly, wishlistIds])
+  }, [products, search, selectedCategory, sortOrder, market.currencyCode])
 
   const homepageOffer = homepageOffers.length
     ? homepageOffers[announcementIndex % homepageOffers.length]
@@ -908,16 +974,8 @@ function ShopPage() {
       .filter(Boolean)
   }, [homepageNewArrivalIds, products])
 
-  function toggleWishlist(product) {
-    const id = String(productId(product))
-    setWishlistIds((current) => current.includes(id)
-      ? current.filter((savedId) => savedId !== id)
-      : [...current, id])
-  }
-
   function selectShopCategory(category) {
     setSelectedCategory(category)
-    setWishlistOnly(false)
     setCategoryMenuOpen(false)
     window.setTimeout(() => {
       document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })
@@ -946,6 +1004,45 @@ function ShopPage() {
   }, [categories, visibleProducts])
 
   const itemCount = cartData.items.reduce((total, item) => total + Number(value(item, 'quantity', 'Quantity', 0)), 0)
+  const inrPerUsd = Number(value(storeCommerceSettings, 'InrPerUsd', 'inrPerUsd')) || 0
+  const formatMoney = (amount, currency = market.currencyCode) =>
+    formatMarketPrice(amount, currency, inrPerUsd)
+  const formatProductMoney = (product, currency = market.currencyCode) => {
+    const price = getPrice(product, currency)
+    if (!Number.isFinite(price) || price <= 0) return currency === 'USD' ? 'USD price not set' : '—'
+    return formatCurrencyAmount(price, currency)
+  }
+  const formatOrderMoney = (amount, order) => {
+    const currency = value(order, 'currencyCode', 'CurrencyCode', 'INR')
+    const usdGrandTotal = value(order, 'usdGrandTotal', 'UsdGrandTotal', null)
+    return currency === 'USD' && usdGrandTotal != null
+      ? formatCurrencyAmount(usdGrandTotal, 'USD')
+      : formatMarketPrice(amount, currency, value(order, 'inrPerUsd', 'InrPerUsd', inrPerUsd))
+  }
+  const selectedCheckoutAddress = checkoutAddresses.find((address) =>
+    String(value(address, 'addressId', 'AddressId', '')) === selectedAddressId)
+  const selectedCheckoutCountryCode = getCountryCode(
+    value(selectedCheckoutAddress, 'country', 'Country', ''),
+  )
+  const checkoutCurrency = defaultCurrencyForCountry(selectedCheckoutCountryCode)
+  const shippingRates = value(storeCommerceSettings, 'InternationalShippingRates', 'internationalShippingRates', {})
+  const selectedShippingRate = shippingRates?.[selectedCheckoutCountryCode]
+  const shippingChargesInr = selectedCheckoutCountryCode === 'IN'
+    ? 0
+    : Number(selectedShippingRate?.shippingUsd) * inrPerUsd
+  const internationalPoliciesReady = [
+    'ShippingPolicy',
+    'ReturnPolicy',
+    'PrivacyPolicy',
+    'TermsAndConditions',
+  ].every((key) => String(value(storeCommerceSettings, key, key[0].toLowerCase() + key.slice(1), '')).trim())
+  const internationalCheckoutReady = selectedCheckoutCountryCode === 'IN'
+    || (inrPerUsd > 0
+      && Number.isFinite(shippingChargesInr)
+      && selectedShippingRate
+      && selectedShippingRate.deliveryEstimate
+      && internationalPoliciesReady
+      && cartData.items.every((item) => getListPrice(item, 'USD') > 0))
   const activeProductId = detailsProduct ? String(productId(detailsProduct)) : ''
   const activeProductVariants = variantsByProduct[activeProductId] || []
   const activeProductVariant = activeProductVariants.find(
@@ -957,13 +1054,21 @@ function ShopPage() {
   const reviewsLoading = Boolean(detailsProduct && !activeReviewsResult)
   const reviewsError = activeReviewsResult?.error || ''
   const activeProductVideo = productVideoResult?.productId === activeProductId ? productVideoResult : null
-  const computedTotal = cartData.items.reduce((total, item) => {
-    const unitPrice = Number(value(item, 'unitPrice', 'UnitPrice', value(item, 'price', 'Price', 0)))
-    return total + unitPrice * Number(value(item, 'quantity', 'Quantity', 0))
-  }, 0)
-  const cartTotal = Number(value(cartData.summary, 'totalAmount', 'TotalAmount', computedTotal))
+  const computedTotal = cartData.items.reduce((total, item) =>
+    total + getPrice(item, market.currencyCode) * Number(value(item, 'quantity', 'Quantity', 0)), 0)
+  const cartPricesReady = cartData.items.every((item) => hasMarketPrice(item, market.currencyCode))
+  const cartTotal = market.currencyCode === 'USD'
+    ? computedTotal
+    : Number(value(cartData.summary, 'totalAmount', 'TotalAmount', computedTotal))
   const couponDiscount = Number(value(couponPreview, 'DiscountAmount', 'discountAmount', 0)) || 0
-  const checkoutTotal = Math.max(0, cartTotal - couponDiscount)
+  const selectedShippingUsd = Number(selectedShippingRate?.shippingUsd) || 0
+  const checkoutSubtotal = cartData.items.reduce((total, item) =>
+    total + getPrice(item, checkoutCurrency) * Number(value(item, 'quantity', 'Quantity', 0)), 0)
+  const checkoutDiscount = checkoutCurrency === 'USD'
+    ? (inrPerUsd > 0 ? couponDiscount / inrPerUsd : 0)
+    : couponDiscount
+  const checkoutTotal = Math.max(0, checkoutSubtotal - checkoutDiscount
+    + (checkoutCurrency === 'USD' ? selectedShippingUsd : 0))
 
   async function checkCoupon() {
     if (!customerSession?.token) {
@@ -999,7 +1104,8 @@ function ShopPage() {
   }
 
   async function openRazorpayCheckout(orderId, method) {
-    if (!razorpayConfig.enabled) {
+    const internationalPayment = selectedCheckoutCountryCode !== 'IN'
+    if (internationalPayment ? !razorpayConfig.internationalEnabled : !razorpayConfig.enabled) {
       throw new Error('Online payment abhi configure nahi hai. Razorpay test credentials set karne ke liye store admin se sampark karein.')
     }
 
@@ -1035,7 +1141,9 @@ function ShopPage() {
           display: {
             blocks: {
               preferred: {
-                name: ONLINE_PAYMENT_METHODS.find((item) => item.id === method)?.name || 'Preferred payment method',
+                name: method === 'card'
+                  ? 'International card'
+                  : ONLINE_PAYMENT_METHODS.find((item) => item.id === method)?.name || 'Preferred payment method',
                 instruments: [{ method }],
               },
             },
@@ -1075,8 +1183,16 @@ function ShopPage() {
       window.location.assign('/customer/login')
       return
     }
-    if (paymentMethod !== 'COD' && !razorpayConfig.enabled) {
-      setCheckoutError('Online payment abhi set up nahi hai. Store owner ko backend .env mein Razorpay Key ID aur Secret configure karke backend restart karna hoga.')
+    if (selectedCheckoutCountryCode !== 'IN' && !internationalCheckoutReady) {
+      setCheckoutError('International checkout is not ready. The store must add USD prices, configure the exchange rate and shipping for your country, and publish its policies.')
+      return
+    }
+    if (paymentMethod !== 'COD' && (
+      selectedCheckoutCountryCode === 'IN'
+        ? !razorpayConfig.enabled
+        : !razorpayConfig.internationalEnabled
+    )) {
+      setCheckoutError('Is delivery country ke liye Razorpay card payment abhi enable nahi hai.')
       return
     }
     if (pendingOnlineOrderId) {
@@ -1194,7 +1310,7 @@ function ShopPage() {
               {couponError && <p className="shop-checkout-error" role="status">{couponError}</p>}
               <div className="shop-checkout-summary">
                 <span>Order {value(orderConfirmation, 'orderNumber', 'OrderNumber', '')}</span>
-                <strong>{money(value(orderConfirmation, 'GrandTotal', 'grandTotal', value(orderConfirmation, 'TotalAmount', 'totalAmount', 0)))}</strong>
+                <strong>{formatOrderMoney(value(orderConfirmation, 'GrandTotal', 'grandTotal', value(orderConfirmation, 'TotalAmount', 'totalAmount', 0)), orderConfirmation)}</strong>
               </div>
               <div className="shop-checkout-actions">
                 <a className="shop-primary-button" href="/account/orders">View my orders</a>
@@ -1207,6 +1323,11 @@ function ShopPage() {
               <h1>Where should we deliver?</h1>
               <p>Choose a saved address and your preferred payment method.</p>
               {checkoutError && <p className="shop-checkout-error" role="alert">{checkoutError}</p>}
+              {selectedCheckoutCountryCode && selectedCheckoutCountryCode !== 'IN' && !internationalCheckoutReady && (
+                <p className="shop-checkout-error" role="status">
+                  International checkout is not ready yet. The store must add USD prices, configure the exchange rate and shipping for your country, and publish its policies.
+                </p>
+              )}
               {loadingCheckoutAddresses ? (
                 <p aria-live="polite" className="customer-loading">Saved addresses load ho rahe hain...</p>
               ) : checkoutAddresses.length ? (
@@ -1220,7 +1341,10 @@ function ShopPage() {
                           <input
                             checked={selectedAddressId === String(addressId)}
                             name="delivery-address"
-                            onChange={() => setSelectedAddressId(String(addressId))}
+                            onChange={() => {
+                              setSelectedAddressId(String(addressId))
+                              setPaymentMethod(getCountryCode(value(address, 'country', 'Country')) === 'IN' ? 'COD' : 'card')
+                            }}
                             required
                             type="radio"
                             value={addressId}
@@ -1259,26 +1383,22 @@ function ShopPage() {
                     {couponError && <p className="shop-checkout-error" role="alert">{couponError}</p>}
                     {couponPreview && <p className="shop-coupon-success" role="status">
                       {value(couponPreview, 'Message', 'message', `Coupon ${couponCode} is valid.`)}
-                      {couponDiscount > 0 ? ` Savings: ${money(couponDiscount)}.` : ' Discount will be applied to your order after it is created.'}
+                      {couponDiscount > 0 ? ` Savings: ${formatMoney(couponDiscount)}.` : ' Discount will be applied to your order after it is created.'}
                     </p>}
                     {activeCoupons.length > 0 && <p className="shop-coupon-offers">Available offers: {activeCoupons.map((coupon) => value(coupon, 'CouponCode', 'couponCode')).filter(Boolean).join(' · ')}</p>}
                   </section>
                   <fieldset className="shop-payment-methods">
                     <legend>Payment method</legend>
-                    <label className={`shop-payment-option${paymentMethod === 'COD' ? ' selected' : ''}${pendingOnlineOrderId ? ' unavailable' : ''}`}>
-                      <input
-                        checked={paymentMethod === 'COD'}
-                        disabled={Boolean(pendingOnlineOrderId)}
-                        name="checkout-payment"
-                        onChange={() => setPaymentMethod('COD')}
-                        type="radio"
-                        value="COD"
-                      />
+                    {selectedCheckoutCountryCode === 'IN' && <label className={`shop-payment-option${paymentMethod === 'COD' ? ' selected' : ''}${pendingOnlineOrderId ? ' unavailable' : ''}`}>
+                      <input checked={paymentMethod === 'COD'} disabled={Boolean(pendingOnlineOrderId)} name="checkout-payment" onChange={() => setPaymentMethod('COD')} type="radio" value="COD" />
                       <span className="shop-payment-icon">₹</span>
                       <span className="shop-payment-copy"><strong>Cash on delivery</strong><small>Pay when your order arrives</small></span>
                       {paymentMethod === 'COD' && <span aria-hidden="true" className="shop-payment-check">✓</span>}
-                    </label>
-                    {ONLINE_PAYMENT_METHODS.map((method) => (
+                    </label>}
+                    {(selectedCheckoutCountryCode === 'IN'
+                      ? ONLINE_PAYMENT_METHODS
+                      : [{ id: 'card', name: 'International credit or debit card', detail: 'Secure card payment via Razorpay', icon: '▤' }]
+                    ).map((method) => (
                       <label
                         className={`shop-payment-option${paymentMethod === method.id ? ' selected' : ''}`}
                         key={method.id}
@@ -1295,9 +1415,13 @@ function ShopPage() {
                         {paymentMethod === method.id && <span aria-hidden="true" className="shop-payment-check">✓</span>}
                       </label>
                     ))}
-                    {!razorpayConfig.enabled && (
+                    {!(selectedCheckoutCountryCode === 'IN'
+                      ? razorpayConfig.enabled
+                      : razorpayConfig.internationalEnabled) && (
                       <p className="shop-payment-config-note">
-                        Online options can be selected. To accept payment, the store must configure Razorpay credentials.
+                        {selectedCheckoutCountryCode === 'IN'
+                          ? 'Online payment requires Razorpay credentials.'
+                          : 'International USD card payments are not enabled for this Razorpay account.'}
                       </p>
                     )}
                   </fieldset>
@@ -1306,21 +1430,35 @@ function ShopPage() {
                       ? 'Complete payment for your existing order to avoid creating a duplicate.'
                       : paymentMethod === 'COD'
                         ? 'Selected: pay in cash when your order is delivered.'
-                        : `Selected: pay securely using ${ONLINE_PAYMENT_METHODS.find((method) => method.id === paymentMethod)?.name || 'online payment'}.`}
+                      : `Selected: pay securely using ${paymentMethod === 'card' ? 'an international card' : ONLINE_PAYMENT_METHODS.find((method) => method.id === paymentMethod)?.name || 'online payment'}.`}
                   </p>
+                  {selectedCheckoutCountryCode !== 'IN' && (
+                    <div className="shop-checkout-costs">
+                      <div><span>Subtotal</span><strong>{cartData.items.every((item) => hasMarketPrice(item, 'USD')) ? formatCurrencyAmount(checkoutSubtotal, 'USD') : 'USD price not set'}</strong></div>
+                      {couponDiscount > 0 && <div><span>Discount</span><strong>−{formatCurrencyAmount(checkoutDiscount, 'USD')}</strong></div>}
+                      <div><span>Shipping</span><strong>{selectedShippingRate ? formatCurrencyAmount(selectedShippingUsd, 'USD') : 'Not available'}</strong></div>
+                      {selectedShippingRate?.deliveryEstimate && <small>Estimated delivery: {selectedShippingRate.deliveryEstimate}</small>}
+                      <p>Import VAT and customs duties are not included. If charged by local authorities, they are payable by the customer on delivery.</p>
+                      <p>
+                        Please review <a href="/policies/shipping">shipping</a>, <a href="/policies/returns">returns</a>, <a href="/policies/privacy">privacy</a> and <a href="/policies/terms">terms</a>.
+                      </p>
+                    </div>
+                  )}
                   <div className="shop-checkout-summary">
                     <span>
                       {pendingOnlineOrderId
                         ? `Order ${value(pendingOnlineOrder, 'orderNumber', 'OrderNumber', `#${pendingOnlineOrderId}`)} · payment pending`
                         : `${itemCount} ${itemCount === 1 ? 'piece' : 'pieces'} · ${paymentMethod === 'COD' ? 'Cash on delivery' : 'Online payment'}`}
                     </span>
-                    <strong>{money(pendingOnlineOrder
-                      ? value(pendingOnlineOrder, 'grandTotal', 'GrandTotal', value(pendingOnlineOrder, 'totalAmount', 'TotalAmount', cartTotal))
-                      : checkoutTotal)}</strong>
+                    <strong>{pendingOnlineOrder
+                      ? formatOrderMoney(value(pendingOnlineOrder, 'grandTotal', 'GrandTotal', value(pendingOnlineOrder, 'totalAmount', 'TotalAmount', cartTotal)), pendingOnlineOrder)
+                      : selectedCheckoutCountryCode !== 'IN' && !cartData.items.every((item) => hasMarketPrice(item, 'USD'))
+                        ? 'USD price not set'
+                        : formatCurrencyAmount(checkoutTotal, checkoutCurrency)}</strong>
                   </div>
                   <button
                     className="shop-primary-button"
-                    disabled={submittingOrder || (!pendingOnlineOrderId && itemCount === 0)}
+                    disabled={submittingOrder || (!pendingOnlineOrderId && (itemCount === 0 || !internationalCheckoutReady))}
                     type="submit"
                   >
                     {submittingOrder
@@ -1379,7 +1517,7 @@ function ShopPage() {
     return customerCart
   }
 
-  async function addProduct(product) {
+  async function addProduct(product, selectedVariant = null) {
     if (!customerSession?.token) {
       sessionStorage.setItem(CUSTOMER_RETURN_TO_KEY, '/shop')
       window.location.assign('/customer/login')
@@ -1399,7 +1537,13 @@ function ShopPage() {
     let activeCart = cart
     try {
       activeCart = await ensureCart()
-      await addItemToCustomerCart(customerSession.token, activeCart.cartId, Number(id), 1)
+      await addItemToCustomerCart(
+        customerSession.token,
+        activeCart.cartId,
+        Number(id),
+        1,
+        selectedVariant ? Number(variantId(selectedVariant)) : null,
+      )
       const payload = await getCustomerCart(customerSession.token, activeCart.cartId)
       const data = payload?.data || {}
       setCart(activeCart)
@@ -1430,7 +1574,7 @@ function ShopPage() {
   }
 
   async function handleDetailsPurchase(buyNow) {
-    if (!await addProduct(detailsProduct)) return
+    if (!await addProduct(detailsProduct, activeProductVariant)) return
 
     setDetailsProduct(null)
     if (buyNow) beginCheckout()
@@ -1514,6 +1658,29 @@ function ShopPage() {
 
   return (
     <main className="shop-page">
+      <div className="shop-market-selector-bar">
+        <div className="shop-market-selector-controls">
+          <label htmlFor="shop-header-market-country">Delivery country
+            <select id="shop-header-market-country" onChange={(event) => {
+              const countryCode = event.target.value
+              const currencyCode = defaultCurrencyForCountry(countryCode)
+              const next = saveMarketPreference({ countryCode, currencyCode })
+              setMarket(next)
+            }} value={market.countryCode}>
+              {MARKET_COUNTRIES.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}
+            </select>
+          </label>
+          <label htmlFor="shop-header-market-currency">Display currency
+            <select id="shop-header-market-currency" onChange={(event) => {
+              const next = saveMarketPreference({ ...market, currencyCode: event.target.value })
+              setMarket(next)
+            }} value={market.currencyCode}>
+              {market.countryCode === 'IN' && <option value="INR">INR · Indian Rupee</option>}
+              <option value="USD">USD · US Dollar</option>
+            </select>
+          </label>
+        </div>
+      </div>
       <div
         className="shop-site-header"
         onBlur={(event) => {
@@ -1541,20 +1708,6 @@ function ShopPage() {
             <a aria-label={customerSession ? 'My account' : 'Sign in'} className="shop-header-icon-link" href={customerSession ? '/account' : '/customer/login'}>
               <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4.5 21a7.5 7.5 0 0 1 15 0" /></svg>
             </a>
-            <button
-              aria-label={`Show wishlist, ${wishlistIds.length} saved rugs`}
-              aria-pressed={wishlistOnly}
-              className={`shop-header-icon-button${wishlistOnly ? ' selected' : ''}`}
-              onClick={() => {
-                setWishlistOnly((current) => !current)
-                setSelectedCategory('All rugs')
-                document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })
-              }}
-              type="button"
-            >
-              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20.8 8.7c0 5.2-8.8 11-8.8 11s-8.8-5.8-8.8-11A4.7 4.7 0 0 1 12 6.3a4.7 4.7 0 0 1 8.8 2.4Z" /></svg>
-              <span>{wishlistIds.length}</span>
-            </button>
             <button aria-label={`Open cart, ${itemCount} items`} className="shop-header-icon-button" onClick={() => navigateCart(true)} type="button">
               <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 8h14l1 13H4L5 8Z" /><path d="M9 9V6a3 3 0 0 1 6 0v3" /></svg>
               <span>{itemCount}</span>
@@ -1754,12 +1907,6 @@ function ShopPage() {
 
         <nav aria-label="Filter by category" className="shop-category-filters">
           <button
-            aria-pressed={wishlistOnly}
-            className={wishlistOnly ? 'shop-category-chip selected' : 'shop-category-chip'}
-            onClick={() => setWishlistOnly((current) => !current)}
-            type="button"
-          >♡ Saved rugs ({wishlistIds.length})</button>
-          <button
             aria-pressed={selectedCategory === 'All rugs'}
             className={selectedCategory === 'All rugs' ? 'shop-category-chip selected' : 'shop-category-chip'}
             onClick={() => setSelectedCategory('All rugs')}
@@ -1837,9 +1984,9 @@ function ShopPage() {
                       (variant) => String(variantId(variant)) === selectedSizeIds[productKey],
                     ) || productVariants[0]
                     const priceSource = selectedVariant || product
-                    const price = getPrice(priceSource)
-                    const oldPrice = Number(value(priceSource, 'price', 'Price', 0))
-                    const offerPercent = getDiscountPercent(priceSource)
+                    const price = getPrice(priceSource, market.currencyCode)
+                    const oldPrice = getListPrice(priceSource, market.currencyCode)
+                    const offerPercent = getDiscountPercent(priceSource, market.currencyCode)
                     const isSampleProduct = value(product, 'shortDescription', 'ShortDescription').startsWith('SAMPLE LISTING')
 
                     return (
@@ -1854,13 +2001,6 @@ function ShopPage() {
                           {offerPercent > 0 && (
                             <span className="shop-product-offer-badge">{offerPercent}% OFF</span>
                           )}
-                          <button
-                            aria-label={`${wishlistIds.includes(productKey) ? 'Remove' : 'Add'} ${name} ${wishlistIds.includes(productKey) ? 'from' : 'to'} wishlist`}
-                            aria-pressed={wishlistIds.includes(productKey)}
-                            className={`shop-product-wishlist${wishlistIds.includes(productKey) ? ' selected' : ''}`}
-                            onClick={() => toggleWishlist(product)}
-                            type="button"
-                          >{wishlistIds.includes(productKey) ? '♥' : '♡'}</button>
                         </div>
                         <div className="shop-product-info">
                           <div className="shop-product-tags">
@@ -1902,12 +2042,13 @@ function ShopPage() {
                             <p className="shop-size-error" role="status">Size options load nahi ho sake: {variantErrors[productKey]}</p>
                           )}
                           <div className="shop-product-buy">
-                            <span className="shop-price">{money(price)}{oldPrice > price && <del>{money(oldPrice)}</del>}</span>
+                            <span className="shop-price">{formatProductMoney(priceSource)}{oldPrice > price && <del>{formatCurrencyAmount(oldPrice, market.currencyCode)}</del>}</span>
                             <div className="shop-product-card-actions">
                               <button
                                 aria-label={productVariants.length ? `Choose size and buy ${name}` : `Buy ${name} now`}
                                 className="shop-buy-now-button"
                                 disabled={addingProduct !== null
+                                  || !hasMarketPrice(priceSource, market.currencyCode)
                                   || (selectedVariant && Number(value(selectedVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)}
                                 onClick={() => buyNowProduct(product)}
                                 type="button"
@@ -1918,6 +2059,7 @@ function ShopPage() {
                                 aria-label={productVariants.length ? `Choose size and add ${name} to cart` : `Add ${name} to cart`}
                                 className="shop-add-button"
                                 disabled={addingProduct !== null
+                                  || !hasMarketPrice(priceSource, market.currencyCode)
                                   || (selectedVariant && Number(value(selectedVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)}
                                 onClick={() => productVariants.length ? openProductDetails(product) : addProduct(product)}
                                 type="button"
@@ -1960,9 +2102,9 @@ function ShopPage() {
               (variant) => String(variantId(variant)) === selectedSizeIds[productKey],
             ) || productVariants[0]
             const priceSource = selectedVariant || product
-            const price = getPrice(priceSource)
-            const oldPrice = Number(value(priceSource, 'price', 'Price', 0))
-            const offerPercent = getDiscountPercent(priceSource)
+            const price = getPrice(priceSource, market.currencyCode)
+            const oldPrice = getListPrice(priceSource, market.currencyCode)
+            const offerPercent = getDiscountPercent(priceSource, market.currencyCode)
             return (
               <article className="shop-product-card shop-new-arrival-card" key={id ?? `new-arrival-${index}`}>
                 <div className="shop-product-media">
@@ -1975,13 +2117,6 @@ function ShopPage() {
                   {offerPercent > 0 && (
                     <span className="shop-product-offer-badge">{offerPercent}% OFF</span>
                   )}
-                  <button
-                    aria-label={`${wishlistIds.includes(productKey) ? 'Remove' : 'Add'} ${name} ${wishlistIds.includes(productKey) ? 'from' : 'to'} wishlist`}
-                    aria-pressed={wishlistIds.includes(productKey)}
-                    className={`shop-product-wishlist${wishlistIds.includes(productKey) ? ' selected' : ''}`}
-                    onClick={() => toggleWishlist(product)}
-                    type="button"
-                  >{wishlistIds.includes(productKey) ? '♥' : '♡'}</button>
                 </div>
                 <div className="shop-product-info">
                   <div className="shop-product-tags"><span className="shop-product-tag featured">New arrival</span></div>
@@ -2017,12 +2152,13 @@ function ShopPage() {
                   ) : <span aria-hidden="true" className="shop-size-select-placeholder" />}
                   {variantErrors[productKey] && <p className="shop-size-error" role="status">Size options load nahi ho sake: {variantErrors[productKey]}</p>}
                   <div className="shop-product-buy">
-                    <span className="shop-price">{money(price)}{oldPrice > price && <del>{money(oldPrice)}</del>}</span>
+                    <span className="shop-price">{formatProductMoney(priceSource)}{oldPrice > price && <del>{formatCurrencyAmount(oldPrice, market.currencyCode)}</del>}</span>
                     <div className="shop-product-card-actions">
                       <button
                         aria-label={productVariants.length ? `Choose size and buy ${name}` : `Buy ${name} now`}
                         className="shop-buy-now-button"
                         disabled={addingProduct !== null
+                          || !hasMarketPrice(priceSource, market.currencyCode)
                           || (selectedVariant && Number(value(selectedVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)}
                         onClick={() => buyNowProduct(product)}
                         type="button"
@@ -2033,6 +2169,7 @@ function ShopPage() {
                         aria-label={productVariants.length ? `Choose size and add ${name} to cart` : `Add ${name} to cart`}
                         className="shop-add-button"
                         disabled={addingProduct !== null
+                          || !hasMarketPrice(priceSource, market.currencyCode)
                           || (selectedVariant && Number(value(selectedVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)}
                         onClick={() => productVariants.length ? openProductDetails(product) : addProduct(product)}
                         type="button"
@@ -2311,13 +2448,14 @@ function ShopPage() {
               {detailsError && <p className="shop-error" role="alert">{detailsError}</p>}
               <div className="shop-details-buy">
                 <strong>
-                  {money(getPrice(activeProductPriceSource))}
-                  {getDiscountPercent(activeProductPriceSource) > 0 && <del>{money(value(activeProductPriceSource, 'price', 'Price'))}</del>}
+                  {formatProductMoney(activeProductPriceSource)}
+                  {getDiscountPercent(activeProductPriceSource, market.currencyCode) > 0 && <del>{formatCurrencyAmount(getListPrice(activeProductPriceSource, market.currencyCode), market.currencyCode)}</del>}
                 </strong>
                 <div className="shop-details-actions">
                   <button
                     className="shop-secondary-button"
                     disabled={addingProduct !== null
+                      || !hasMarketPrice(activeProductPriceSource, market.currencyCode)
                       || loadingDetails
                       || (activeProductVariant && Number(value(activeProductVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)
                       || Number(value(detailsProduct, 'stockQuantity', 'StockQuantity', 1)) <= 0}
@@ -2329,6 +2467,7 @@ function ShopPage() {
                   <button
                     className="shop-primary-button"
                     disabled={addingProduct !== null
+                      || !hasMarketPrice(activeProductPriceSource, market.currencyCode)
                       || loadingDetails
                       || (activeProductVariant && Number(value(activeProductVariant, 'stockQuantity', 'StockQuantity', 0)) <= 0)
                       || Number(value(detailsProduct, 'stockQuantity', 'StockQuantity', 1)) <= 0}
@@ -2374,7 +2513,6 @@ function ShopPage() {
                     const id = cartItemId(item)
                     const name = value(item, 'productName', 'ProductName', 'Carpet')
                     const quantity = Number(value(item, 'quantity', 'Quantity', 1))
-                    const unitPrice = Number(value(item, 'unitPrice', 'UnitPrice', value(item, 'price', 'Price', 0)))
                     const picture = getProductImageUrl(imageKey(item))
                     return (
                       <article className="shop-cart-item" key={id ?? index}>
@@ -2382,7 +2520,7 @@ function ShopPage() {
                         <div className="shop-cart-item-details">
                           <span>{value(item, 'categoryName', 'CategoryName', 'Jaysha collection')}</span>
                           <h3>{name}</h3>
-                          <strong>{money(unitPrice)}</strong>
+                          <strong>{formatProductMoney(item)}</strong>
                           <div className="shop-quantity-control">
                             <button aria-label={`Decrease ${name} quantity`} disabled={busyItem === id || quantity <= 1} onClick={() => updateQuantity(item, quantity - 1)} type="button">−</button>
                             <span>{quantity}</span>
@@ -2395,7 +2533,7 @@ function ShopPage() {
                   })}
                 </div>
                 <div className="shop-cart-summary">
-                  <div><span>Subtotal</span><strong>{money(cartTotal)}</strong></div>
+                  <div><span>Subtotal</span><strong>{cartPricesReady ? formatCurrencyAmount(cartTotal, market.currencyCode) : `${market.currencyCode} price not set`}</strong></div>
                   <p>Shipping and taxes calculated at checkout.</p>
                   <button className="shop-primary-button" onClick={beginCheckout} type="button">
                     {customerSession ? 'Continue to checkout' : 'Sign in to checkout'}

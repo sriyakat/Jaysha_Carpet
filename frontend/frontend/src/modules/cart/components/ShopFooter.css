@@ -152,6 +152,101 @@
   font-size: 9px;
 }
 
+.whatsapp-floating-button {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 1000;
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #25d366;
+  box-shadow: 0 10px 26px rgb(37 211 102 / 38%), 0 5px 16px rgb(0 0 0 / 20%);
+  color: #fff;
+  text-decoration: none;
+  isolation: isolate;
+  animation: whatsapp-soft-pulse 2.4s ease-out infinite;
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease;
+}
+
+.whatsapp-floating-button:hover {
+  transform: translateY(-3px) scale(1.03);
+  background: #20bd5a;
+  box-shadow: 0 14px 32px rgb(37 211 102 / 48%), 0 7px 18px rgb(0 0 0 / 24%);
+}
+
+.whatsapp-floating-button svg {
+  width: 38px;
+  height: 38px;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 8%));
+}
+
+.whatsapp-phone-bg {
+  fill: #fff;
+}
+
+.whatsapp-phone-icon {
+  fill: #25d366;
+}
+
+.whatsapp-floating-label {
+  position: absolute;
+  right: 68px;
+  white-space: nowrap;
+  padding: 8px 11px;
+  border-radius: 6px;
+  opacity: 0;
+  color: #fff;
+  background: #26352c;
+  font-size: 12px;
+  font-weight: 700;
+  pointer-events: none;
+  transform: translateX(7px);
+  transition: opacity .18s ease, transform .18s ease;
+}
+
+.whatsapp-floating-button:hover .whatsapp-floating-label,
+.whatsapp-floating-button:focus-visible .whatsapp-floating-label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.whatsapp-floating-button:focus-visible {
+  outline: 3px solid rgb(37 211 102 / 35%);
+  outline-offset: 4px;
+}
+
+@keyframes whatsapp-soft-pulse {
+  0%, 100% {
+    box-shadow: 0 10px 26px rgb(37 211 102 / 38%), 0 5px 16px rgb(0 0 0 / 20%);
+  }
+  50% {
+    box-shadow: 0 10px 28px rgb(37 211 102 / 48%), 0 5px 16px rgb(0 0 0 / 20%), 0 0 0 9px rgb(37 211 102 / 8%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .whatsapp-floating-button {
+    animation: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .whatsapp-floating-button {
+    right: 16px;
+    bottom: 16px;
+    width: 52px;
+    height: 52px;
+  }
+
+  .whatsapp-floating-label {
+    display: none;
+  }
+}
+
 @media (max-width: 700px) {
   .store-footer {
     padding: 36px 22px 16px;

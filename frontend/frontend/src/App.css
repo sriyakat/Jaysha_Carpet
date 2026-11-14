@@ -2942,6 +2942,14 @@
   white-space: nowrap;
 }
 
+.product-price-usd {
+  display: block;
+  margin-top: 3px;
+  color: #687365;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .featured-label {
   display: inline-flex;
   margin-left: 7px;

@@ -14,7 +14,7 @@ function isEnabled(valueToCheck) {
   return valueToCheck === true || valueToCheck === 1 || valueToCheck === '1' || valueToCheck === 'true'
 }
 
-const emptyForm = { ProductId: '', SizeLabel: '', Price: '', DiscountPrice: '', StockQuantity: '0', IsActive: true }
+const emptyForm = { ProductId: '', SizeLabel: '', Price: '', DiscountPrice: '', UsdPrice: '', UsdDiscountPrice: '', StockQuantity: '0', IsActive: true }
 
 function ProductVariantsPage({ user, onLogout, onNavigate }) {
   const [variants, setVariants] = useState([])
@@ -94,6 +94,8 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
       SizeLabel: value(variant, 'sizeLabel', 'SizeLabel'),
       Price: String(value(variant, 'price', 'Price')),
       DiscountPrice: value(variant, 'discountPrice', 'DiscountPrice') == null ? '' : String(value(variant, 'discountPrice', 'DiscountPrice')),
+      UsdPrice: value(variant, 'usdPrice', 'UsdPrice') == null ? '' : String(value(variant, 'usdPrice', 'UsdPrice')),
+      UsdDiscountPrice: value(variant, 'usdDiscountPrice', 'UsdDiscountPrice') == null ? '' : String(value(variant, 'usdDiscountPrice', 'UsdDiscountPrice')),
       StockQuantity: String(value(variant, 'stockQuantity', 'StockQuantity', 0)),
       IsActive: isEnabled(value(variant, 'isActive', 'IsActive', true)),
     })
@@ -110,6 +112,8 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
       ProductId: Number(form.ProductId),
       Price: Number(form.Price),
       DiscountPrice: form.DiscountPrice === '' ? null : Number(form.DiscountPrice),
+      UsdPrice: Number(form.UsdPrice),
+      UsdDiscountPrice: form.UsdDiscountPrice === '' ? null : Number(form.UsdDiscountPrice),
       StockQuantity: Number(form.StockQuantity),
     }
     let savedVariant
@@ -175,8 +179,10 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
             <div className="module-field wide"><span>Variant image (optional)</span><ImageUploadField file={imageFile} hint="JPEG, PNG, WebP ya GIF · Maximum 15 MB" id="variantImage" label="Variant image" onClear={() => { setImageFile(null); setImageKey(''); setImageRemoved(true) }} onFileChange={(file) => { setImageFile(file); setImageRemoved(false) }} value={imageKey} /></div>
             <label className="module-field">Product<select className="module-select" onChange={(event) => setForm({ ...form, ProductId: event.target.value })} required value={form.ProductId}><option value="">Select product</option>{products.map((product) => <option key={value(product, 'productId', 'ProductId')} value={value(product, 'productId', 'ProductId')}>{value(product, 'productName', 'ProductName')}</option>)}</select></label>
             <label className="module-field">Size / label<input className="module-input" maxLength="100" onChange={(event) => setForm({ ...form, SizeLabel: event.target.value })} required value={form.SizeLabel} /></label>
-            <label className="module-field">Price<input className="module-input" min="0.01" onChange={(event) => setForm({ ...form, Price: event.target.value })} required step="0.01" type="number" value={form.Price} /></label>
-            <label className="module-field">Discount price (optional)<input className="module-input" min="0" onChange={(event) => setForm({ ...form, DiscountPrice: event.target.value })} step="0.01" type="number" value={form.DiscountPrice} /></label>
+            <label className="module-field">India price (INR)<input className="module-input" min="0.01" onChange={(event) => setForm({ ...form, Price: event.target.value })} required step="0.01" type="number" value={form.Price} /></label>
+            <label className="module-field">International price (USD)<input className="module-input" min="0.01" onChange={(event) => setForm({ ...form, UsdPrice: event.target.value })} required step="0.01" type="number" value={form.UsdPrice} /></label>
+            <label className="module-field">Discount price (INR, optional)<input className="module-input" min="0" onChange={(event) => setForm({ ...form, DiscountPrice: event.target.value })} step="0.01" type="number" value={form.DiscountPrice} /></label>
+            <label className="module-field">Discount price (USD, optional)<input className="module-input" min="0" onChange={(event) => setForm({ ...form, UsdDiscountPrice: event.target.value })} step="0.01" type="number" value={form.UsdDiscountPrice} /></label>
             <label className="module-field">Stock quantity<input className="module-input" min="0" onChange={(event) => setForm({ ...form, StockQuantity: event.target.value })} required type="number" value={form.StockQuantity} /></label>
             {editing && <label className="module-checkbox"><input checked={form.IsActive} onChange={(event) => setForm({ ...form, IsActive: event.target.checked })} type="checkbox" />Active</label>}
             <div className="module-form-actions"><button className="module-button" disabled={saving} onClick={() => setShowForm(false)} type="button">Cancel</button><button className="module-button primary" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save variant'}</button></div>
@@ -186,11 +192,19 @@ function ProductVariantsPage({ user, onLogout, onNavigate }) {
           <div className="module-panel-heading"><h2>All variants</h2><span>Product-specific pricing and stock</span></div>
           {error && <div className="module-state error" role="alert">{error}</div>}
           {loading ? <div className="module-state">Loading variants…</div> : variants.length === 0 ? <div className="module-state">No product variants found for these filters.</div> : (
-            <div className="module-table-wrap"><table className="module-table"><thead><tr><th>Product / size</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody>
+            <div className="module-table-wrap"><table className="module-table"><thead><tr><th>Product / size</th><th>Price (INR / USD)</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead><tbody>
               {variants.map((variant) => {
                 const id = value(variant, 'productVariantId', 'ProductVariantId')
                 const active = isEnabled(value(variant, 'isActive', 'IsActive', true))
-                return <tr key={id}><td>{value(variant, 'imageStorageKey', 'ImageStorageKey') && <img alt="" className="module-image-thumbnail" src={getProductImageUrl(value(variant, 'imageStorageKey', 'ImageStorageKey'))} />}<strong>{productNames.get(String(value(variant, 'productId', 'ProductId'))) || value(variant, 'productName', 'ProductName', 'Product')}</strong><span className="muted">{value(variant, 'sizeLabel', 'SizeLabel')}</span></td><td><strong>₹{value(variant, 'discountPrice', 'DiscountPrice') ?? value(variant, 'price', 'Price')}</strong><span className="muted">{value(variant, 'discountPrice', 'DiscountPrice') != null ? `List ₹${value(variant, 'price', 'Price')}` : ''}</span></td><td>{value(variant, 'stockQuantity', 'StockQuantity', 0)}</td><td>{active ? 'Active' : 'Inactive'}</td><td><div className="module-row-actions"><button className="module-button" onClick={() => startEdit(variant)} type="button">Edit</button><button className="module-button" onClick={() => toggleActive(variant)} type="button">{active ? 'Deactivate' : 'Activate'}</button></div></td></tr>
+                const inrDiscount = Number(value(variant, 'discountPrice', 'DiscountPrice', 0))
+                const usdDiscount = Number(value(variant, 'usdDiscountPrice', 'UsdDiscountPrice', 0))
+                return <tr key={id}>
+                  <td>{value(variant, 'imageStorageKey', 'ImageStorageKey') && <img alt="" className="module-image-thumbnail" src={getProductImageUrl(value(variant, 'imageStorageKey', 'ImageStorageKey'))} />}<strong>{productNames.get(String(value(variant, 'productId', 'ProductId'))) || value(variant, 'productName', 'ProductName', 'Product')}</strong><span className="muted">{value(variant, 'sizeLabel', 'SizeLabel')}</span></td>
+                  <td><strong>₹{inrDiscount > 0 ? inrDiscount : value(variant, 'price', 'Price')}</strong><span className="muted">{usdDiscount > 0 ? `$${usdDiscount}` : value(variant, 'usdPrice', 'UsdPrice', null) == null ? 'USD not set' : `$${value(variant, 'usdPrice', 'UsdPrice')}`}</span></td>
+                  <td>{value(variant, 'stockQuantity', 'StockQuantity', 0)}</td>
+                  <td>{active ? 'Active' : 'Inactive'}</td>
+                  <td><div className="module-row-actions"><button className="module-button" onClick={() => startEdit(variant)} type="button">Edit</button><button className="module-button" onClick={() => toggleActive(variant)} type="button">{active ? 'Deactivate' : 'Activate'}</button></div></td>
+                </tr>
               })}
             </tbody></table></div>
           )}

@@ -13,6 +13,7 @@ import { createCustomerReturnRequest, getCustomerReturnRequests } from '../../re
 import { getMyNotifications, markMyNotificationRead, markMyNotificationsRead } from '../../notification/api/customerNotificationApi.js'
 import { createCustomerReview, deleteCustomerReview, getMyReviews, updateCustomerReview } from '../../review/api/customerReviewApi.js'
 import { getProducts } from '../../product/api/productApi.js'
+import { formatMarketPrice, MARKET_COUNTRIES } from '../../cart/market.js'
 
 const EMPTY_ADDRESS = {
   AddressLine: '',
@@ -37,12 +38,13 @@ function formatDate(value) {
     : new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium' }).format(date)
 }
 
-function formatMoney(value) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(Number(value) || 0)
+function formatMoney(value, currency = 'INR', inrPerUsd = null, directUsdAmount = null) {
+  if (currency === 'USD' && directUsdAmount !== null && directUsdAmount !== undefined) {
+    const amount = Number(directUsdAmount)
+    if (!Number.isFinite(amount)) return '—'
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(amount)
+  }
+  return formatMarketPrice(value, currency, inrPerUsd)
 }
 
 function AddressBook({ token }) {
@@ -225,7 +227,10 @@ function AddressBook({ token }) {
             <input autoComplete="address-level1" id="address-state" maxLength={100} onChange={(event) => setForm({ ...form, State: event.target.value })} required value={form.State} />
           </label>
           <label className="customer-field" htmlFor="address-country">Country
-            <input autoComplete="country-name" id="address-country" maxLength={100} onChange={(event) => setForm({ ...form, Country: event.target.value })} required value={form.Country} />
+            <select autoComplete="country-name" id="address-country" onChange={(event) => setForm({ ...form, Country: event.target.value })} required value={form.Country}>
+              {!MARKET_COUNTRIES.some((country) => country.name === form.Country) && <option value={form.Country}>{form.Country}</option>}
+              {MARKET_COUNTRIES.map((country) => <option key={country.code} value={country.name}>{country.name}</option>)}
+            </select>
           </label>
           <label className="customer-field" htmlFor="address-pincode">PIN code
             <input autoComplete="postal-code" id="address-pincode" maxLength={15} onChange={(event) => setForm({ ...form, Pincode: event.target.value })} required value={form.Pincode} />
@@ -350,7 +355,12 @@ function OrdersList({ token }) {
                 </div>
                 <div className="commerce-order-meta">
                   <span>Placed {formatDate(field(order, 'CreatedAt', 'createdAt'))}</span>
-                  <strong>{formatMoney(field(order, 'GrandTotal', 'grandTotal', field(order, 'TotalAmount', 'totalAmount', 0)))}</strong>
+                  <strong>{formatMoney(
+                    field(order, 'GrandTotal', 'grandTotal', field(order, 'TotalAmount', 'totalAmount', 0)),
+                    field(order, 'CurrencyCode', 'currencyCode', 'INR'),
+                    field(order, 'InrPerUsd', 'inrPerUsd'),
+                    field(order, 'UsdGrandTotal', 'usdGrandTotal', null),
+                  )}</strong>
                 </div>
                 <div className="commerce-card-actions">
                   <button disabled={busyOrderId === orderId} onClick={() => toggleDetails(orderId)} type="button">
@@ -368,7 +378,12 @@ function OrdersList({ token }) {
                       {items.map((item, itemIndex) => (
                         <li key={field(item, 'OrderItemId', 'orderItemId', itemIndex)}>
                           <span>{field(item, 'ProductName', 'productName', 'Carpet')}{field(item, 'SizeLabel', 'sizeLabel') ? ` · ${field(item, 'SizeLabel', 'sizeLabel')}` : ''} × {field(item, 'Quantity', 'quantity', 1)}</span>
-                          <strong>{formatMoney(field(item, 'LineTotal', 'lineTotal', field(item, 'UnitPrice', 'unitPrice', 0)))}</strong>
+                          <strong>{formatMoney(
+                            field(item, 'LineTotal', 'lineTotal', field(item, 'UnitPrice', 'unitPrice', 0)),
+                            field(detail.order, 'CurrencyCode', 'currencyCode', 'INR'),
+                            field(detail.order, 'InrPerUsd', 'inrPerUsd'),
+                            field(item, 'UsdLineTotal', 'usdLineTotal', null),
+                          )}</strong>
                         </li>
                       ))}
                     </ul>

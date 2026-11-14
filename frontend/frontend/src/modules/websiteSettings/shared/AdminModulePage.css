@@ -9,3 +9,30 @@
 .settings-form {
   padding-top: 20px;
 }
+
+.market-shipping-rate-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.market-shipping-rate-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) repeat(2, minmax(160px, 1fr));
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e6e9e4;
+  border-radius: 8px;
+}
+
+.market-shipping-rate-row label {
+  display: grid;
+  gap: 6px;
+}
+
+@media (max-width: 700px) {
+  .market-shipping-rate-row {
+    grid-template-columns: 1fr;
+  }
+}

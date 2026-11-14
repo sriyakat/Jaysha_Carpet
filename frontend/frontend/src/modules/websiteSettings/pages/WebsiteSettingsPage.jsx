@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react'
 import AdminModuleLayout from '../../shared/components/AdminModuleLayout.jsx'
 import ImageUploadField from '../../shared/components/ImageUploadField.jsx'
 import { deleteContentImage, getContentImageMap, uploadContentImage } from '../../shared/api/contentImageApi.js'
+import { MARKET_COUNTRIES } from '../../cart/market.js'
 import '../shared/AdminModulePage.css'
 import { getWebsiteSettings, updateWebsiteSettings } from '../api/websiteSettingsApi.js'
+
+const DEFAULT_SHIPPING_POLICY = 'Shipping costs and estimated delivery times are shown before checkout. International import VAT, customs duties and local charges are not included in the order total. If local authorities charge them, they are payable by the customer on delivery.'
 
 const fields = [
   ['ShopName', 'Shop name', 'text'],
@@ -17,6 +20,13 @@ const fields = [
   ['PinterestUrl', 'Pinterest URL', 'url'],
   ['YouTubeUrl', 'YouTube URL', 'url'],
   ['CopyrightText', 'Copyright text', 'text'],
+  ['MetaTitle', 'SEO title', 'text'],
+  ['MetaDescription', 'SEO description', 'textarea'],
+  ['CanonicalBaseUrl', 'Canonical website URL', 'url'],
+  ['ShippingPolicy', 'Shipping, delivery & customs policy', 'textarea'],
+  ['ReturnPolicy', 'Returns & refunds policy', 'textarea'],
+  ['PrivacyPolicy', 'Privacy policy', 'textarea'],
+  ['TermsAndConditions', 'Terms & conditions', 'textarea'],
 ]
 
 function WebsiteSettingsPage({ user, onLogout, onNavigate }) {
@@ -24,6 +34,9 @@ function WebsiteSettingsPage({ user, onLogout, onNavigate }) {
   const [logoKey, setLogoKey] = useState('')
   const [logoFile, setLogoFile] = useState(null)
   const [logoRemoved, setLogoRemoved] = useState(false)
+  const [robotsIndex, setRobotsIndex] = useState(true)
+  const [inrPerUsd, setInrPerUsd] = useState('')
+  const [shippingRates, setShippingRates] = useState({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -33,8 +46,14 @@ function WebsiteSettingsPage({ user, onLogout, onNavigate }) {
     let active = true
     Promise.all([getWebsiteSettings(), getContentImageMap('website-settings')]).then(([data, images]) => {
       if (active) {
-        setSettings(Object.fromEntries(fields.map(([key]) => [key, data[key] ?? ''])))
+        setSettings(Object.fromEntries(fields.map(([key]) => [
+          key,
+          data[key] ?? (key === 'ShippingPolicy' ? DEFAULT_SHIPPING_POLICY : ''),
+        ])))
+        setRobotsIndex(data.RobotsIndex !== false)
         setLogoKey(images.store || '')
+        setInrPerUsd(data.InrPerUsd ?? '')
+        setShippingRates(data.InternationalShippingRates || {})
       }
     }).catch((loadError) => {
       if (active) setError(loadError.message)
@@ -50,8 +69,20 @@ function WebsiteSettingsPage({ user, onLogout, onNavigate }) {
     setError('')
     setSuccess('')
     try {
-      const payload = await updateWebsiteSettings(settings)
-      if (payload?.data) setSettings(Object.fromEntries(fields.map(([key]) => [key, payload.data[key] ?? ''])))
+      const payload = await updateWebsiteSettings({
+        ...settings,
+        RobotsIndex: robotsIndex,
+        InrPerUsd: inrPerUsd === '' ? null : Number(inrPerUsd),
+        InternationalShippingRates: shippingRates,
+      })
+      if (payload?.data) {
+        setSettings(Object.fromEntries(fields.map(([key]) => [
+          key,
+          payload.data[key] ?? (key === 'ShippingPolicy' ? DEFAULT_SHIPPING_POLICY : ''),
+        ])))
+        setInrPerUsd(payload.data.InrPerUsd ?? '')
+        setShippingRates(payload.data.InternationalShippingRates || {})
+      }
       try {
         if (logoFile) {
           const result = await uploadContentImage('website-settings', 'store', logoFile)
@@ -82,11 +113,43 @@ function WebsiteSettingsPage({ user, onLogout, onNavigate }) {
         {success && <p className="module-alert module-success" role="status">{success}</p>}
         <section className="module-form-panel">
           <div className="module-panel-heading"><h2>Storefront details</h2><span>Changes are visible to customers.</span></div>
+          <p className="module-state">International checkout stays unavailable until an exchange rate, shipping rates, delivery estimates and all policy text are configured.</p>
           {loading ? <div className="module-state">Loading website settings…</div> : <form className="module-form settings-form" onSubmit={submit}>
             <div className="module-field wide"><span>Store logo (optional)</span><ImageUploadField file={logoFile} hint="JPEG, PNG, WebP ya GIF · Maximum 15 MB" id="storeLogo" label="Store logo" onClear={() => { setLogoFile(null); setLogoKey(''); setLogoRemoved(true) }} onFileChange={(file) => { setLogoFile(file); setLogoRemoved(false) }} value={logoKey} /></div>
             {fields.map(([key, label, type]) => <label className={`module-field${type === 'textarea' ? ' wide' : ''}`} key={key}>{label}{type === 'textarea'
-              ? <textarea className="module-textarea" onChange={(event) => setSettings({ ...settings, [key]: event.target.value })} value={settings[key] ?? ''} />
+              ? <textarea className="module-textarea" maxLength={12000} onChange={(event) => setSettings({ ...settings, [key]: event.target.value })} value={settings[key] ?? ''} />
               : <input className="module-input" onChange={(event) => setSettings({ ...settings, [key]: event.target.value })} type={type} value={settings[key] ?? ''} />}</label>)}
+            <label className="module-field wide">INR per 1 USD
+              <input className="module-input" min="0.000001" onChange={(event) => setInrPerUsd(event.target.value)} step="0.000001" type="number" value={inrPerUsd} />
+              <small>Set and update this rate yourself. International prices and card charges stay disabled until it is configured.</small>
+            </label>
+            <div className="module-field wide">
+              <strong>International shipping rates (USD)</strong>
+              <small>Enter a rate and delivery estimate for each country you serve. Unconfigured countries cannot check out.</small>
+              <div className="market-shipping-rate-list">
+                {MARKET_COUNTRIES.filter((country) => country.code !== 'IN').map((country) => {
+                  const rate = shippingRates[country.code] || {}
+                  return (
+                    <div className="market-shipping-rate-row" key={country.code}>
+                      <strong>{country.name}</strong>
+                      <label>{country.code} shipping (USD)
+                        <input className="module-input" min="0" onChange={(event) => setShippingRates((current) => ({
+                          ...current,
+                          [country.code]: { ...current[country.code], shippingUsd: event.target.value === '' ? '' : Number(event.target.value) },
+                        }))} step="0.01" type="number" value={rate.shippingUsd ?? ''} />
+                      </label>
+                      <label>Delivery estimate
+                        <input className="module-input" maxLength={80} onChange={(event) => setShippingRates((current) => ({
+                          ...current,
+                          [country.code]: { ...current[country.code], deliveryEstimate: event.target.value },
+                        }))} placeholder="e.g. 7–14 business days" value={rate.deliveryEstimate ?? ''} />
+                      </label>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            <label className="module-field wide"><span>Search engine indexing</span><input checked={robotsIndex} onChange={(event) => setRobotsIndex(event.target.checked)} type="checkbox" /> <span>{robotsIndex ? 'Allow search engines to index this store' : 'Block search engine indexing'}</span></label>
             <div className="module-form-actions"><button className="module-button primary" disabled={saving} type="submit">{saving ? 'Saving…' : 'Save settings'}</button></div>
           </form>}
         </section>

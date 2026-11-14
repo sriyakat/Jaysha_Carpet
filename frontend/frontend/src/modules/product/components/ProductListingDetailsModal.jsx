@@ -23,7 +23,7 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
   const [error, setError] = useState('')
   const [formError, setFormError] = useState('')
   const [editingSize, setEditingSize] = useState(null)
-  const [sizeForm, setSizeForm] = useState({ SizeLabel: '', Price: '', DiscountPrice: '', StockQuantity: '0' })
+  const [sizeForm, setSizeForm] = useState({ SizeLabel: '', Price: '', DiscountPrice: '', UsdPrice: '', UsdDiscountPrice: '', StockQuantity: '0' })
   const [sizeImageMap, setSizeImageMap] = useState({})
   const [sizeImageFile, setSizeImageFile] = useState(null)
   const [sizeImageKey, setSizeImageKey] = useState('')
@@ -101,6 +101,8 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
       SizeLabel: value(size, 'sizeLabel', 'SizeLabel'),
       Price: String(value(size, 'price', 'Price')),
       DiscountPrice: value(size, 'discountPrice', 'DiscountPrice') == null ? '' : String(value(size, 'discountPrice', 'DiscountPrice')),
+      UsdPrice: value(size, 'usdPrice', 'UsdPrice') == null ? '' : String(value(size, 'usdPrice', 'UsdPrice')),
+      UsdDiscountPrice: value(size, 'usdDiscountPrice', 'UsdDiscountPrice') == null ? '' : String(value(size, 'usdDiscountPrice', 'UsdDiscountPrice')),
       StockQuantity: String(value(size, 'stockQuantity', 'StockQuantity', 0)),
     })
     setFormError('')
@@ -115,6 +117,8 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
       SizeLabel: sizeForm.SizeLabel.trim(),
       Price: Number(sizeForm.Price),
       DiscountPrice: sizeForm.DiscountPrice === '' ? null : Number(sizeForm.DiscountPrice),
+      UsdPrice: Number(sizeForm.UsdPrice),
+      UsdDiscountPrice: sizeForm.UsdDiscountPrice === '' ? null : Number(sizeForm.UsdDiscountPrice),
       StockQuantity: Number(sizeForm.StockQuantity),
       ...(editingSize ? { IsActive: isEnabled(value(editingSize, 'isActive', 'IsActive', true)) } : {}),
     }
@@ -136,7 +140,7 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
       if (sizeImageFile) await uploadContentImage('variants', variantId, sizeImageFile)
       else if (sizeImageRemoved && variantId) await deleteContentImage('variants', variantId)
       setEditingSize(null)
-      setSizeForm({ SizeLabel: '', Price: '', DiscountPrice: '', StockQuantity: '0' })
+      setSizeForm({ SizeLabel: '', Price: '', DiscountPrice: '', UsdPrice: '', UsdDiscountPrice: '', StockQuantity: '0' })
       await loadDetails()
       setSizeImageFile(null)
       setSizeImageKey('')
@@ -245,13 +249,15 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
               <div className="module-field"><span>Size image (optional)</span><ImageUploadField file={sizeImageFile} hint="JPEG, PNG, WebP ya GIF · Maximum 15 MB" id="variantSizeImage" label="Size image" onClear={() => { setSizeImageFile(null); setSizeImageKey(''); setSizeImageRemoved(true) }} onFileChange={(file) => { setSizeImageFile(file); setSizeImageRemoved(false) }} value={sizeImageKey} /></div>
               <div className="listing-detail-form-grid">
                 <label className="module-field">Size label<input className="module-input" maxLength="100" onChange={(event) => setSizeForm({ ...sizeForm, SizeLabel: event.target.value })} placeholder="e.g. 5 x 8 ft" required value={sizeForm.SizeLabel} /></label>
-                <label className="module-field">Price (₹)<input className="module-input" min="0.01" onChange={(event) => setSizeForm({ ...sizeForm, Price: event.target.value })} required step="0.01" type="number" value={sizeForm.Price} /></label>
-                <label className="module-field">Offer price (optional)<input className="module-input" min="0" onChange={(event) => setSizeForm({ ...sizeForm, DiscountPrice: event.target.value })} step="0.01" type="number" value={sizeForm.DiscountPrice} /></label>
+                <label className="module-field">India price (INR)<input className="module-input" min="0.01" onChange={(event) => setSizeForm({ ...sizeForm, Price: event.target.value })} required step="0.01" type="number" value={sizeForm.Price} /></label>
+                <label className="module-field">International price (USD)<input className="module-input" min="0.01" onChange={(event) => setSizeForm({ ...sizeForm, UsdPrice: event.target.value })} required step="0.01" type="number" value={sizeForm.UsdPrice} /></label>
+                <label className="module-field">Offer price (INR, optional)<input className="module-input" min="0" onChange={(event) => setSizeForm({ ...sizeForm, DiscountPrice: event.target.value })} step="0.01" type="number" value={sizeForm.DiscountPrice} /></label>
+                <label className="module-field">Offer price (USD, optional)<input className="module-input" min="0" onChange={(event) => setSizeForm({ ...sizeForm, UsdDiscountPrice: event.target.value })} step="0.01" type="number" value={sizeForm.UsdDiscountPrice} /></label>
                 <label className="module-field">Stock quantity<input className="module-input" min="0" onChange={(event) => setSizeForm({ ...sizeForm, StockQuantity: event.target.value })} required type="number" value={sizeForm.StockQuantity} /></label>
               </div>
               {formError && <p className="module-alert" role="alert">{formError}</p>}
               <div className="listing-detail-form-actions">
-                {editingSize && <button className="module-button" disabled={saving} onClick={() => { setEditingSize(null); setSizeImageFile(null); setSizeImageKey(''); setSizeImageRemoved(false); setFormError(''); setSizeForm({ SizeLabel: '', Price: '', DiscountPrice: '', StockQuantity: '0' }) }} type="button">Cancel edit</button>}
+                {editingSize && <button className="module-button" disabled={saving} onClick={() => { setEditingSize(null); setSizeImageFile(null); setSizeImageKey(''); setSizeImageRemoved(false); setFormError(''); setSizeForm({ SizeLabel: '', Price: '', DiscountPrice: '', UsdPrice: '', UsdDiscountPrice: '', StockQuantity: '0' }) }} type="button">Cancel edit</button>}
                 <button className="module-button primary" disabled={saving} type="submit">{saving ? 'Saving…' : editingSize ? 'Save size' : 'Add size'}</button>
               </div>
             </form>
@@ -263,10 +269,13 @@ function ProductListingDetailsModal({ product, productId, onClose }) {
                   {sizes.map((size) => {
                     const id = value(size, 'productVariantId', 'ProductVariantId')
                     const active = isEnabled(value(size, 'isActive', 'IsActive', true))
+                    const inrDiscount = Number(value(size, 'discountPrice', 'DiscountPrice', 0))
+                    const usdDiscount = Number(value(size, 'usdDiscountPrice', 'UsdDiscountPrice', 0))
                     return (
                       <article className="listing-size-item" key={id}>
                         <div>{value(size, 'imageStorageKey', 'ImageStorageKey') && <img alt="" className="module-image-thumbnail" src={getProductImageUrl(value(size, 'imageStorageKey', 'ImageStorageKey'))} />}<strong>{value(size, 'sizeLabel', 'SizeLabel')}</strong><span>{value(size, 'stockQuantity', 'StockQuantity', 0)} in stock · {active ? 'Active' : 'Inactive'}</span></div>
-                        <strong>₹{value(size, 'discountPrice', 'DiscountPrice') ?? value(size, 'price', 'Price')}</strong>
+                        <strong>₹{inrDiscount > 0 ? inrDiscount : value(size, 'price', 'Price')}</strong>
+                        <span className="muted">{usdDiscount > 0 ? `$${usdDiscount}` : value(size, 'usdPrice', 'UsdPrice', null) == null ? 'USD not set' : `$${value(size, 'usdPrice', 'UsdPrice')}`}</span>
                         <div className="module-row-actions">
                           <button className="module-button" disabled={saving} onClick={() => startEditSize(size)} type="button">Edit</button>
                           <button className="module-button" disabled={saving} onClick={() => toggleSize(size)} type="button">{active ? 'Hide' : 'Show'}</button>

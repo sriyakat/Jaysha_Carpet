@@ -96,13 +96,14 @@ export async function getCustomerCart(token, cartId) {
   })
 }
 
-export async function addItemToCustomerCart(token, cartId, productId, quantity = 1) {
+export async function addItemToCustomerCart(token, cartId, productId, quantity = 1, productVariantId = null) {
   return request(`/cart/${encodeURIComponent(cartId)}/items`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       ProductId: productId,
       Quantity: quantity,
+      ...(productVariantId ? { ProductVariantId: productVariantId } : {}),
     }),
   })
 }

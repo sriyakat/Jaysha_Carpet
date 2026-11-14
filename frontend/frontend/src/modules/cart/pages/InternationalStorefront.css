@@ -1,0 +1,125 @@
+.shop-market-selector-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px clamp(24px, 5vw, 72px);
+  border-bottom: 1px solid rgb(82 103 79 / 12%);
+  background: #f7f6f1;
+}
+
+.shop-market-selector-controls {
+  display: grid;
+  width: min(100%, 420px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.shop-market-selector-controls label {
+  display: grid;
+  gap: 4px;
+  color: #39483c;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.shop-market-selector-controls select {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgb(82 103 79 / 35%);
+  border-radius: 8px;
+  color: #26352c;
+  background: #fff;
+  font: inherit;
+  font-size: 14px;
+}
+
+.shop-market-selector-controls select:focus-visible {
+  outline: 2px solid #52674f;
+  outline-offset: 2px;
+}
+
+.shop-market-selector-controls select:disabled {
+  color: #687365;
+  background: #eeefe9;
+  cursor: not-allowed;
+}
+
+@media (max-width: 700px) {
+  .shop-market-selector-bar {
+    justify-content: center;
+    padding: 6px 14px;
+  }
+
+  .shop-market-selector-controls {
+    width: 100%;
+    gap: 10px;
+  }
+
+  .shop-market-selector-controls label {
+    gap: 3px;
+    font-size: 11px;
+  }
+
+  .shop-market-selector-controls select {
+    min-height: 36px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .shop-market-selector-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.shop-checkout-costs {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid rgb(82 103 79 / 18%);
+  border-radius: 8px;
+  background: #f7f8f3;
+}
+
+.shop-checkout-costs > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.shop-checkout-costs > small,
+.shop-checkout-costs > p {
+  margin: 0;
+  color: #687365;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.store-policy-page {
+  width: min(820px, calc(100% - 40px));
+  min-height: 70vh;
+  margin: 0 auto;
+  padding: 64px 0;
+  color: #26352c;
+}
+
+.store-policy-page > a {
+  color: #52674f;
+  text-decoration: none;
+}
+
+.store-policy-page h1 {
+  margin: 12px 0 24px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(32px, 6vw, 52px);
+  font-weight: 500;
+}
+
+.store-policy-copy,
+.store-policy-page > p:last-child {
+  color: #5e695f;
+  font-size: 15px;
+  line-height: 1.9;
+  white-space: pre-line;
+}

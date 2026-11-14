@@ -31,6 +31,14 @@ function formatPrice(value) {
     : '—'
 }
 
+function formatUsdPrice(value) {
+  if (value === null || value === undefined || value === '') return 'USD not set'
+  const price = Number(value)
+  return Number.isFinite(price)
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(price)
+    : 'USD not set'
+}
+
 function ProductsPage({ user, onLogout, onNavigate }) {
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
@@ -278,7 +286,7 @@ function ProductsPage({ user, onLogout, onNavigate }) {
           </div>
 
           <ol aria-label="How to create a product listing" className="listing-setup-steps">
-            <li><span>1</span><div><strong>Add product</strong><small>Product name, category and price</small></div></li>
+            <li><span>1</span><div><strong>Add product</strong><small>Product name, category, INR price and USD price</small></div></li>
             <li><span>2</span><div><strong>Add images</strong><small>Upload product photos</small></div></li>
             <li><span>3</span><div><strong>Manage listing</strong><small>Set sizes, video, offer price and coupons</small></div></li>
           </ol>
@@ -341,7 +349,7 @@ function ProductsPage({ user, onLogout, onNavigate }) {
                       <tr>
                         <th scope="col">Product</th>
                         <th scope="col">Category</th>
-                        <th scope="col">Price</th>
+                        <th scope="col">India / international price</th>
                         <th scope="col">Inventory</th>
                         <th scope="col">Status</th>
                         <th scope="col"><span className="visually-hidden">Actions</span></th>
@@ -355,6 +363,7 @@ function ProductsPage({ user, onLogout, onNavigate }) {
                         const primaryImage = readValue(product, 'primaryImage', 'PrimaryImage')
                         const categoryName = readValue(product, 'categoryName', 'CategoryName', '—')
                         const price = readValue(product, 'discountPrice', 'DiscountPrice') || readValue(product, 'price', 'Price')
+                        const usdPrice = readValue(product, 'usdDiscountPrice', 'UsdDiscountPrice') || readValue(product, 'usdPrice', 'UsdPrice')
                         const stock = Number(readValue(product, 'stockQuantity', 'StockQuantity', 0))
                         const isActive = Boolean(readValue(product, 'isActive', 'IsActive', true))
                         const isFeatured = Boolean(readValue(product, 'isFeatured', 'IsFeatured', false))
@@ -376,7 +385,7 @@ function ProductsPage({ user, onLogout, onNavigate }) {
                               </div>
                             </td>
                             <td>{categoryName}</td>
-                            <td><span className="product-price">{formatPrice(price)}</span></td>
+                            <td><span className="product-price">{formatPrice(price)}</span><span className="product-price-usd">{formatUsdPrice(usdPrice)}</span></td>
                             <td><span className={stock > 0 ? 'stock-label' : 'stock-label out'}>{stock > 0 ? `${stock} in stock` : 'Out of stock'}</span></td>
                             <td><span className={isActive ? 'status-badge active' : 'status-badge'}>{isActive ? 'Active' : 'Inactive'}</span></td>
                             <td>

@@ -15,6 +15,8 @@ function productValues(product) {
     Description: readProduct(product, 'description', 'Description'),
     Price: readProduct(product, 'price', 'Price'),
     DiscountPrice: readProduct(product, 'discountPrice', 'DiscountPrice'),
+    UsdPrice: readProduct(product, 'usdPrice', 'UsdPrice'),
+    UsdDiscountPrice: readProduct(product, 'usdDiscountPrice', 'UsdDiscountPrice'),
     StockQuantity: readProduct(product, 'stockQuantity', 'StockQuantity', 0),
     Material: readProduct(product, 'material', 'Material'),
     Size: readProduct(product, 'size', 'Size'),
@@ -76,6 +78,13 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
       || Number(values.DiscountPrice) < 0
       || Number(values.DiscountPrice) >= price
     )) errors.DiscountPrice = 'छूट की कीमत शून्य या उससे अधिक और मूल कीमत से कम होनी चाहिए।'
+    const usdPrice = Number(values.UsdPrice)
+    if (!Number.isFinite(usdPrice) || usdPrice <= 0) errors.UsdPrice = 'USD कीमत शून्य से अधिक होनी चाहिए।'
+    if (values.UsdDiscountPrice !== '' && (
+      !Number.isFinite(Number(values.UsdDiscountPrice))
+      || Number(values.UsdDiscountPrice) < 0
+      || Number(values.UsdDiscountPrice) >= usdPrice
+    )) errors.UsdDiscountPrice = 'USD छूट की कीमत शून्य या उससे अधिक और मूल USD कीमत से कम होनी चाहिए।'
     if (!Number.isInteger(Number(values.StockQuantity)) || Number(values.StockQuantity) < 0) {
       errors.StockQuantity = 'स्टॉक की मात्रा शून्य या उससे बड़ी पूर्ण संख्या होनी चाहिए।'
     }
@@ -94,6 +103,8 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
       Description: values.Description.trim() || null,
       Price: Number(values.Price),
       DiscountPrice: values.DiscountPrice === '' ? null : Number(values.DiscountPrice),
+      UsdPrice: Number(values.UsdPrice),
+      UsdDiscountPrice: values.UsdDiscountPrice === '' ? null : Number(values.UsdDiscountPrice),
       StockQuantity: Number(values.StockQuantity),
       Material: values.Material.trim() || null,
       Size: values.Size.trim() || null,
@@ -205,7 +216,7 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
             </div>
 
             <div className="form-field">
-              <label htmlFor="Price">Price (₹) <span>*</span></label>
+              <label htmlFor="Price">India price (INR) <span>*</span></label>
               <input
                 id="Price"
                 name="Price"
@@ -220,7 +231,23 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
             </div>
 
             <div className="form-field">
-              <label htmlFor="DiscountPrice">Discount price (₹)</label>
+              <label htmlFor="UsdPrice">International price (USD) <span>*</span></label>
+              <input
+                id="UsdPrice"
+                min="0.01"
+                name="UsdPrice"
+                onChange={updateField}
+                step="0.01"
+                type="number"
+                value={values.UsdPrice}
+                aria-invalid={Boolean(fieldErrors.UsdPrice)}
+                className={fieldErrors.UsdPrice ? 'field-invalid' : ''}
+              />
+              {fieldErrors.UsdPrice && <span className="field-error">{fieldErrors.UsdPrice}</span>}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="DiscountPrice">Discount price (INR)</label>
               <input
                 id="DiscountPrice"
                 name="DiscountPrice"
@@ -232,6 +259,22 @@ function ProductFormModal({ product, categories, saving, error, onClose, onSubmi
                 className={fieldErrors.DiscountPrice ? 'field-invalid' : ''}
               />
               {fieldErrors.DiscountPrice && <span className="field-error">{fieldErrors.DiscountPrice}</span>}
+            </div>
+
+            <div className="form-field">
+              <label htmlFor="UsdDiscountPrice">Discount price (USD)</label>
+              <input
+                id="UsdDiscountPrice"
+                min="0"
+                name="UsdDiscountPrice"
+                onChange={updateField}
+                step="0.01"
+                type="number"
+                value={values.UsdDiscountPrice}
+                aria-invalid={Boolean(fieldErrors.UsdDiscountPrice)}
+                className={fieldErrors.UsdDiscountPrice ? 'field-invalid' : ''}
+              />
+              {fieldErrors.UsdDiscountPrice && <span className="field-error">{fieldErrors.UsdDiscountPrice}</span>}
             </div>
 
             <div className="form-field">

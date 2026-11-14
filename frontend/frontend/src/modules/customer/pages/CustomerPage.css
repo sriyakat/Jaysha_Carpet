@@ -106,9 +106,10 @@
   position: relative;
   z-index: 1;
   margin: 20px 0 14px;
+  max-width: 440px;
   color: #304337;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(42px, 5vw, 62px);
+  font-size: clamp(42px, 4.4vw, 56px);
   font-weight: 400;
   letter-spacing: -2px;
   line-height: 1.04;
@@ -122,7 +123,7 @@
 .customer-story > p {
   position: relative;
   z-index: 1;
-  max-width: 370px;
+  max-width: 300px;
   margin: 4px 0 0;
   color: #73796f;
   font-size: 14px;
@@ -131,10 +132,10 @@
 
 .customer-rug-art {
   position: absolute;
-  right: 3%;
-  bottom: 34px;
-  width: min(240px, 60%);
-  height: 238px;
+  right: 0;
+  bottom: 20px;
+  width: min(200px, 42%);
+  height: 200px;
   display: grid;
   place-items: center;
   border: 7px double #ddcfaa;
@@ -199,6 +200,7 @@
 .customer-panel {
   padding: 42px clamp(27px, 4vw, 48px);
   border: 1px solid #ebe9e0;
+  border-radius: 18px;
   background: #fffefa;
   box-shadow: 0 18px 60px rgb(48 59 45 / 6%);
 }
@@ -252,10 +254,10 @@
 
 .customer-field input {
   width: 100%;
-  min-height: 45px;
+  min-height: 48px;
   padding: 0 13px;
   border: 1px solid #ddded5;
-  border-radius: 2px;
+  border-radius: 8px;
   outline: none;
   color: #344139;
   background: #fff;
@@ -291,6 +293,7 @@
   min-height: 47px;
   margin-top: 4px;
   border: 0;
+  border-radius: 8px;
   color: #fffdf6;
   background: #4d654e;
   font: inherit;
@@ -708,10 +711,18 @@
     gap: 36px;
   }
 
+  .customer-story h1 {
+    font-size: clamp(38px, 5vw, 46px);
+  }
+
+  .customer-story > p {
+    max-width: 240px;
+  }
+
   .customer-rug-art {
-    right: 8%;
-    width: 190px;
-    height: 205px;
+    right: 0;
+    width: 155px;
+    height: 165px;
   }
 
   .customer-account-grid {
@@ -1149,4 +1160,27 @@
 
 .customer-footer {
   color: #858a7f;
+}
+
+.customer-field input:-webkit-autofill,
+.customer-field input:-webkit-autofill:hover,
+.customer-field input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #344139;
+  -webkit-box-shadow: 0 0 0 1000px #fffdf8 inset;
+  transition: background-color 9999s ease-out 0s;
+}
+
+.customer-field input:focus-visible {
+  outline: 2px solid #819178;
+  outline-offset: 2px;
+}
+
+.customer-nav a:focus-visible,
+.customer-nav button:focus-visible,
+.customer-switch a:focus-visible,
+.customer-forgot-link:focus-visible,
+.customer-text-button:focus-visible,
+.customer-back-link:focus-visible {
+  outline: 2px solid #819178;
+  outline-offset: 3px;
 }

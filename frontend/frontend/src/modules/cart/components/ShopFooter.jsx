@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { getPublicWebsiteSettings } from '../../websiteSettings/api/publicWebsiteSettingsApi.js'
 import { getProductImageUrl } from '../../product/api/productApi.js'
+import {
+  defaultCurrencyForCountry,
+  MARKET_COUNTRIES,
+  readMarketPreference,
+  saveMarketPreference,
+} from '../market.js'
 import './ShopFooter.css'
 
 const DEFAULT_SETTINGS = {
@@ -15,6 +21,7 @@ const DEFAULT_SETTINGS = {
   PinterestUrl: '',
   YouTubeUrl: '',
   CopyrightText: '',
+  InrPerUsd: null,
 }
 const CURRENT_YEAR = new Date().getFullYear()
 
@@ -27,10 +34,39 @@ function phoneLink(number) {
   return digits ? `tel:${digits}` : ''
 }
 
+function whatsappUrl(number) {
+  let digits = String(number || '').replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.length === 10) digits = `91${digits}`
+  return `https://wa.me/${digits}`
+}
+
+function WhatsAppFloatingButton({ number }) {
+  const href = whatsappUrl(number)
+  if (!href) return null
+
+  return (
+    <a
+      aria-label="Chat with Jaysha Carpet on WhatsApp"
+      className="whatsapp-floating-button"
+      href={href}
+      rel="noreferrer"
+      target="_blank"
+      title="Chat on WhatsApp"
+    >
+      <span className="whatsapp-floating-label">Chat on WhatsApp</span>
+      <svg aria-hidden="true" viewBox="0 0 32 32">
+        <path className="whatsapp-phone-bg" d="M16 2.8A13.2 13.2 0 0 0 4.7 22.3L3 29l7-2.2A13.2 13.2 0 1 0 16 2.8Z" />
+        <path className="whatsapp-phone-icon" d="M11.3 9.1c-.3-.7-.6-.7-.9-.7h-.8c-.3 0-.7.1-1.1.5-.4.4-1.5 1.5-1.5 3.6s1.5 4.2 1.7 4.5c.2.3 3 4.6 7.3 6.3 3.6 1.4 4.3 1.1 5.1 1 .8-.1 2.6-1 3-2 .4-1 .4-1.8.3-2-.1-.2-.4-.3-.8-.5l-3-1.4c-.4-.2-.7-.3-1 .3-.3.4-1 1.4-1.3 1.7-.3.3-.5.4-1 .1-.4-.2-1.9-.7-3.6-2.2-1.3-1.2-2.2-2.7-2.5-3.2-.3-.4 0-.7.2-.9l.7-.8c.2-.2.3-.4.4-.7.1-.2 0-.5-.1-.7l-1.1-2.9Z" />
+      </svg>
+    </a>
+  )
+}
+
 function ShopFooter({ customerSession, onShopClick, onCartClick }) {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [settingsError, setSettingsError] = useState('')
-  const [shippingRegion, setShippingRegion] = useState('IN')
+  const [market, setMarket] = useState(readMarketPreference)
   const [newsletterEmail, setNewsletterEmail] = useState('')
   const [newsletterMessage, setNewsletterMessage] = useState('')
 
@@ -50,6 +86,7 @@ function ShopFooter({ customerSession, onShopClick, onCartClick }) {
   }, [])
 
   const shopName = setting(settings, 'ShopName', 'shopName') || DEFAULT_SETTINGS.ShopName
+  const inrPerUsd = Number(setting(settings, 'InrPerUsd', 'inrPerUsd')) || 0
   const description = setting(settings, 'FooterDescription', 'footerDescription') || DEFAULT_SETTINGS.FooterDescription
   const email = setting(settings, 'ContactEmail', 'contactEmail')
   const phone = setting(settings, 'ContactPhone', 'contactPhone')
@@ -95,7 +132,7 @@ function ShopFooter({ customerSession, onShopClick, onCartClick }) {
           <h2>Customer support</h2>
           {email && <a href={`mailto:${email}`}>{email}</a>}
           {phone && <a href={phoneLink(phone)}>{phone}</a>}
-          {whatsapp && <a href={`https://wa.me/${whatsapp.replace(/\D/g, '')}`} rel="noreferrer" target="_blank">Chat on WhatsApp</a>}
+          {whatsapp && <a href={whatsappUrl(whatsapp)} rel="noreferrer" target="_blank">Chat on WhatsApp</a>}
           {address && <p className="store-footer-address">{address}</p>}
           {!email && !phone && !whatsapp && !address && <p>For product and order assistance, sign in to your customer account.</p>}
           <a href="#shop-journal-title">Rug sizing journal</a>
@@ -128,28 +165,47 @@ function ShopFooter({ customerSession, onShopClick, onCartClick }) {
             {newsletterMessage && <small aria-live="polite" role="status">{newsletterMessage}</small>}
           </form>
           <h2 className="store-footer-region-heading">Your region</h2>
-          <label htmlFor="shop-shipping-region">Choose your country or region</label>
-          <select id="shop-shipping-region" onChange={(event) => setShippingRegion(event.target.value)} value={shippingRegion}>
-            <option value="IN">India</option>
-            <option value="US">United States</option>
-            <option value="GB">United Kingdom</option>
-            <option value="INT">Other international destinations</option>
+          <label htmlFor="shop-shipping-region">Country or delivery region</label>
+          <select id="shop-shipping-region" onChange={(event) => {
+            const countryCode = event.target.value
+            const currencyCode = defaultCurrencyForCountry(countryCode)
+            const next = saveMarketPreference({
+              countryCode,
+              currencyCode,
+            })
+            setMarket(next)
+          }} value={market.countryCode}>
+            {MARKET_COUNTRIES.map((country) => <option key={country.code} value={country.code}>{country.name}</option>)}
           </select>
-          <label htmlFor="shop-currency">Currency</label>
-          <select disabled id="shop-currency" value="INR"><option value="INR">INR · Indian Rupee</option></select>
-          <small>Prices and checkout are currently shown in INR.</small>
+          <label htmlFor="shop-currency">Display currency</label>
+          <select id="shop-currency" onChange={(event) => {
+            const next = saveMarketPreference({ ...market, currencyCode: event.target.value })
+            setMarket(next)
+          }} value={market.currencyCode}>
+            {market.countryCode === 'IN' && <option value="INR">INR · Indian Rupee</option>}
+            <option value="USD">USD · US Dollar</option>
+          </select>
+          <small>
+            {market.countryCode === 'IN'
+              ? 'India checkout is charged in INR.'
+              : inrPerUsd
+                ? 'International prices are the USD amounts set by the store; import charges may be payable on delivery.'
+                : 'International product prices use the store-set USD amounts; checkout setup is still required.'}
+          </small>
         </section>
       </div>
       <div className="store-footer-bottom">
         <span>{copyright}</span>
         <div className="store-footer-legal">
-          {email
-            ? <><a href={`mailto:${email}?subject=${encodeURIComponent('Request for privacy policy')}`}>Privacy policy</a><a href={`mailto:${email}?subject=${encodeURIComponent('Request for terms and conditions')}`}>Terms & conditions</a></>
-            : <><span>Privacy policy available on request</span><span>Terms available on request</span></>}
+          <a href="/policies/shipping">Shipping & customs</a>
+          <a href="/policies/returns">Returns</a>
+          <a href="/policies/privacy">Privacy</a>
+          <a href="/policies/terms">Terms</a>
           <a href="/admin/login">Store admin</a>
         </div>
       </div>
       {settingsError && <span className="store-footer-settings-note" role="status">Store contact details are temporarily unavailable.</span>}
+      <WhatsAppFloatingButton number={whatsapp} />
     </footer>
   )
 }

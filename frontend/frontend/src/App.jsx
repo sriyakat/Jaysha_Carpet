@@ -3,6 +3,7 @@ import { lazy, Suspense, useState } from 'react'
 import CategoriesPage from './modules/category/pages/CategoriesPage.jsx'
 const ProductsPage = lazy(() => import('./modules/product/pages/ProductsPage.jsx'))
 import ShopPage from './modules/cart/pages/ShopPage.jsx'
+import StorePoliciesPage from './modules/cart/pages/StorePoliciesPage.jsx'
 import AuthPage from './modules/auth/pages/AuthPage.jsx'
 import CustomerPage from './modules/customer/pages/CustomerPage.jsx'
 import OrdersPage from './modules/order/pages/OrdersPage.jsx'
@@ -74,6 +75,10 @@ function App() {
 
   if (['/', '/shop', '/cart', '/checkout'].includes(window.location.pathname)) {
     return <ShopPage />
+  }
+
+  if (window.location.pathname.startsWith('/policies/')) {
+    return <StorePoliciesPage />
   }
 
   if (
